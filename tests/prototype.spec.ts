@@ -1,5 +1,13 @@
 import { test, expect } from "@playwright/test";
 
+test("busca global abre outro registro mesmo na página atual", async ({ page }) => {
+  await page.goto("/ordens/?os=o1042");
+  await page.getByRole("button", { name: /Buscar na plataforma/ }).click();
+  await page.getByRole("dialog").getByRole("textbox").fill("1041");
+  await page.getByRole("dialog").getByRole("button", { name: /OS #1041/ }).click();
+  await expect(page.getByRole("heading", { name: "OS #1041", exact: true })).toBeVisible();
+});
+
 test("nova OS registra equipamento e não cria recebível antes de aprovação", async ({
   page,
 }) => {

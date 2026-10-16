@@ -85,7 +85,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const go = (href: string) => {
     setSearch(false);
     setQuery("");
-    router.push(href);
+    if (href.split("?")[0] === path) window.location.assign(href);
+    else router.push(href);
   };
   const activeLabel =
     groups.flatMap((g) => g.items).find((item) => item.href === path)?.label ||
