@@ -50,6 +50,8 @@ O estado local foi atualizado para a versão 2, preservando a chave de armazenam
 
 O [plano executado e os próximos passos](docs/08-etapa-fiscal-e-proximos-passos.md) descrevem as regras da simulação, os contratos propostos e a sequência até o piloto fiscal real.
 
+O [desenho financeiro ampliado](docs/09-financeiro-pagamentos-e-fluxo-de-caixa.md) especifica entrada/parcelas, pagamento mensal na loja, dinheiro/troco, Pix, cartão e repasse, cheque/compensação, pagamento misto, contas a pagar, caixa e conciliação. É uma especificação futura: essas funcionalidades não foram adicionadas à tela nesta revisão. `OS.received` continua sendo um valor acumulado demonstrativo, insuficiente para calcular saldo bancário ou caixa histórico. O plano define a substituição por registros próprios e a preservação dos valores legados sem inventar movimentos.
+
 A referência de data da demonstração é 16/10/2026, para manter exemplos e testes reproduzíveis.
 
 ## Organização
