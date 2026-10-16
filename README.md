@@ -1,0 +1,59 @@
+# Sistem — protótipo navegável
+
+Next.js 16.4.2, React 19.3.1, TypeScript e CSS. Interface em português para uma loja de eletrônicos com assistência técnica.
+
+## Executar no Windows / PowerShell
+
+Na pasta `D:\SistemNF-e\web`:
+
+```powershell
+npm.cmd install
+npm.cmd run dev
+```
+
+Abrir `http://127.0.0.1:3000`. O sufixo `.cmd` evita o bloqueio de `npm.ps1` pela política do PowerShell, sem alterar a configuração do computador. Em outros shells, `npm install` e `npm run dev` funcionam normalmente.
+
+## Verificações
+
+```powershell
+npm.cmd run typecheck
+npm.cmd test
+npm.cmd run build
+```
+
+Os testes de navegador usam Google Chrome instalado (`channel: chrome`). O Playwright inicia o servidor quando necessário. O build gera a versão estática em `out/`; `next start` não se aplica ao modo de exportação estática.
+
+## Funcionalidades demonstráveis
+
+- Painel com indicadores calculados a partir dos registros.
+- Clientes e produtos: busca, filtros, criação e edição.
+- OS: entrada, diagnóstico e valores, aprovação registrada, execução, checklist e entrega. Histórico com responsável pela aprovação/retirada.
+- Financeiro: recebimentos manuais parciais/totais de OS aprovadas; forma e valor registrados no histórico.
+- Produtos/estoque: catálogo separado do saldo, entrada manual com referência e reserva/saída por venda.
+- Vendas: um item por pedido, reserva por quantidade e entrega de produtos sem controle por série.
+- Importação: exemplo pronto e leitura de XML no navegador, vínculos por item, preço de venda, revisão e bloqueio de documento repetido. Novos produtos entram com estoque zero.
+- Área fiscal: estados fictícios e explicação da pendência; sem emissão/consulta/cancelamento reais.
+- Configurações: exportação JSON e restauração dos exemplos com confirmação.
+- Busca global, navegação responsiva, modais nativos e acesso demonstrativo em `/entrar/`.
+
+## Dados e limites
+
+Usar apenas informações fictícias. O armazenamento é local ao navegador e não oferece autenticação, isolamento real de empresas, sincronização entre computadores ou backup. Os contatos de parceiros adicionados ficam somente na sessão da tela, conforme aviso nela.
+
+Não há OCR, banco de dados, envio de mensagens, transação bancária, emissão fiscal ou cobrança de assinatura. O parser XML é uma demonstração de preenchimento: não valida assinatura, autorização ou destinatário e não deve ser usado para efetivar compras reais. Seleções de vínculo a produtos existentes ainda não criam um cadastro completo de relações entre fornecedores e produtos.
+
+OS não baixa peças do estoque nesta etapa. Produtos serializados aparecem no catálogo e no pedido demonstrativo, mas conferência e venda de séries individuais ainda não estão implementadas; a entrega desse pedido está desabilitada. Os dados fiscais de exemplo não representam orientação tributária.
+
+A referência de data da demonstração é 16/10/2026, para manter exemplos e testes reproduzíveis.
+
+## Organização
+
+- `src/app`: rotas Next.js, estilos globais e tokens locais do design system.
+- `src/components`: estrutura visual e componentes compartilhados.
+- `src/features`: telas e interações por domínio.
+- `src/lib/domain.ts`: tipos, etapas e formatação; valores monetários em centavos nesta simulação.
+- `src/lib/seed.ts`: registros fictícios.
+- `src/lib/demo-store.tsx`: operações e persistência simuladas. Na integração real, substituir por serviços HTTP preservando contratos, autorização e validações no servidor.
+- `tests`: jornadas de navegador com foco em persistência, estados, estoque e importação.
+
+Os tokens foram copiados da especificação em `../design/tokens.css` para manter este aplicativo independente na publicação. Mudanças futuras no design system devem sincronizar os dois arquivos.

@@ -1,0 +1,116 @@
+export type Tone = "neutral" | "info" | "success" | "warning" | "danger";
+export type Stage =
+  | "received"
+  | "diagnosing"
+  | "awaiting_approval"
+  | "in_progress"
+  | "quality_check"
+  | "ready_for_pickup"
+  | "delivered";
+export const stages: Record<Stage, { label: string; tone: Tone }> = {
+  received: { label: "Recebida", tone: "neutral" },
+  diagnosing: { label: "Em diagnóstico", tone: "info" },
+  awaiting_approval: { label: "Aguardando aprovação", tone: "warning" },
+  in_progress: { label: "Em execução", tone: "info" },
+  quality_check: { label: "Em testes", tone: "info" },
+  ready_for_pickup: { label: "Pronta para retirada", tone: "success" },
+  delivered: { label: "Entregue", tone: "neutral" },
+};
+export interface Customer {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  type: "Pessoa física" | "Empresa";
+}
+export interface Product {
+  id: string;
+  sku: string;
+  name: string;
+  category: string;
+  unit: string;
+  cost: number;
+  price: number;
+  stock: number;
+  reserved: number;
+  minimum: number;
+  serialized: boolean;
+  ncm: string;
+  supplierCode?: string;
+  supplierId?: string;
+  lastReceipt?: string;
+}
+export interface Activity {
+  label: string;
+  date: string;
+}
+export interface ServiceOrder {
+  id: string;
+  number: number;
+  customerId: string;
+  equipment: string;
+  serial: string;
+  accessories: string;
+  issue: string;
+  diagnosis: string;
+  stage: Stage;
+  technician: string;
+  due: string;
+  created: string;
+  parts: number;
+  labor: number;
+  received: number;
+  approved: boolean;
+  tested: boolean;
+  history: Activity[];
+}
+export interface Sale {
+  id: string;
+  number: number;
+  customerId: string;
+  items: { productId: string; quantity: number; unitPrice: number }[];
+  status: "confirmed" | "delivered";
+  date: string;
+  total: number;
+}
+export interface FiscalDocument {
+  id: string;
+  number: string;
+  customer: string;
+  model: "NF-e" | "NFS-e";
+  total: number;
+  status: "authorized" | "rejected" | "processing" | "draft";
+  date: string;
+}
+export interface DemoState {
+  version: 1;
+  customers: Customer[];
+  products: Product[];
+  orders: ServiceOrder[];
+  sales: Sale[];
+  documents: FiscalDocument[];
+  imports: string[];
+}
+export const money = (cents: number) =>
+  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
+    cents / 100,
+  );
+export const dateLabel = (date: string) =>
+  new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "short",
+    timeZone: "UTC",
+  }).format(new Date(`${date}T12:00:00Z`));
+export const TODAY = "2026-10-16";
+export const sumOrder = (order: ServiceOrder) => order.parts + order.labor;
+export const matches = (text: string, query: string) =>
+  text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .includes(
+      query
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase(),
+    );
