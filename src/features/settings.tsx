@@ -79,6 +79,13 @@ export function SettingsPage() {
                 <dd>Administrador demonstrativo</dd>
               </div>
             </dl>
+            <Link
+              className="button button-secondary"
+              href="/fiscal/configuracao/"
+            >
+              Configurar dados fiscais demonstrativos
+              <ArrowRight size={16} />
+            </Link>
           </div>
         </Panel>
         <Panel title="O que este protótipo permite">

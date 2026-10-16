@@ -1,3 +1,11 @@
+import type {
+  CompanyFiscalProfile,
+  FiscalAddress,
+  FiscalDocument,
+  ProductFiscalProfile,
+  ServiceFiscalProfile,
+} from "./fiscal/types";
+export type { FiscalDocument } from "./fiscal/types";
 export type Tone = "neutral" | "info" | "success" | "warning" | "danger";
 export type Stage =
   | "received"
@@ -22,6 +30,8 @@ export interface Customer {
   email: string;
   phone: string;
   type: "Pessoa física" | "Empresa";
+  document?: string;
+  fiscalAddress?: FiscalAddress;
 }
 export interface Product {
   id: string;
@@ -39,6 +49,7 @@ export interface Product {
   supplierCode?: string;
   supplierId?: string;
   lastReceipt?: string;
+  fiscal?: ProductFiscalProfile;
 }
 export interface Activity {
   label: string;
@@ -73,23 +84,16 @@ export interface Sale {
   date: string;
   total: number;
 }
-export interface FiscalDocument {
-  id: string;
-  number: string;
-  customer: string;
-  model: "NF-e" | "NFS-e";
-  total: number;
-  status: "authorized" | "rejected" | "processing" | "draft";
-  date: string;
-}
 export interface DemoState {
-  version: 1;
+  version: 2;
   customers: Customer[];
   products: Product[];
   orders: ServiceOrder[];
   sales: Sale[];
   documents: FiscalDocument[];
   imports: string[];
+  fiscalProfile: CompanyFiscalProfile;
+  serviceFiscal: ServiceFiscalProfile;
 }
 export const money = (cents: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(

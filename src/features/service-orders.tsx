@@ -106,6 +106,12 @@ export function OrdersPage() {
             description={`${customer?.name || "Cliente"} · ${selectedOrder.equipment}`}
             action={
               <>
+                <Link
+                  className="button button-secondary"
+                  href={`/fiscal/?source=order:${selectedOrder.id}`}
+                >
+                  Preparar NFS-e simulada
+                </Link>
                 <button
                   className="button button-secondary"
                   onClick={() => {

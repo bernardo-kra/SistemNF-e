@@ -1,7 +1,10 @@
 import type { DemoState } from "./domain";
+import { defaultCompanyFiscal, defaultServiceFiscal } from "./fiscal/defaults";
 
 export const seed: DemoState = {
-  version: 1,
+  version: 2,
+  fiscalProfile: structuredClone(defaultCompanyFiscal),
+  serviceFiscal: { ...defaultServiceFiscal },
   customers: [
     {
       id: "c1",

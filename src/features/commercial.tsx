@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import {
   Plus,
   ShoppingBag,
@@ -8,8 +9,6 @@ import {
   CheckCircle2,
   Clock3,
   ArrowDownLeft,
-  FileText,
-  ArrowUpRight,
 } from "lucide-react";
 import { useDemo, uid } from "@/lib/demo-store";
 import {
@@ -396,6 +395,12 @@ export function SalesPage() {
                         </Badge>
                       </td>
                       <td>
+                        <Link
+                          className="button button-small button-secondary"
+                          href={`/fiscal/?source=sale:${s.id}`}
+                        >
+                          Preparar fiscal
+                        </Link>
                         {s.status !== "delivered" && (
                           <button
                             className="button button-small button-secondary"
@@ -517,122 +522,4 @@ export function SalesPage() {
   );
 }
 
-export function FiscalPage() {
-  const { state } = useDemo();
-  const [query, setQuery] = useState("");
-  const [selected, setSelected] = useState<string | null>(null);
-  const info = {
-    authorized: { label: "Autorizada · exemplo", tone: "success" as const },
-    rejected: { label: "Rejeitada · exemplo", tone: "danger" as const },
-    processing: { label: "Processando · exemplo", tone: "info" as const },
-    draft: { label: "Rascunho", tone: "neutral" as const },
-  };
-  const document = state.documents.find((d) => d.id === selected);
-  return (
-    <>
-      <PageHeader
-        eyebrow="DOCUMENTOS E PENDÊNCIAS"
-        title="Documentos fiscais"
-        description="Situação fiscal visível, separada da venda e do recebimento."
-      />
-      <div className="notice notice-warning">
-        <FileText size={19} />
-        <div>
-          <strong>Área fiscal demonstrativa</strong>
-          <p>
-            Os documentos abaixo são exemplos fictícios. O protótipo não emite,
-            consulta ou cancela notas reais.
-          </p>
-        </div>
-      </div>
-      <section className="panel">
-        <div className="list-toolbar">
-          <SearchField
-            value={query}
-            onChange={setQuery}
-            placeholder="Buscar número ou cliente…"
-          />
-          <Badge tone="warning">Sem integração fiscal</Badge>
-        </div>
-        <div className="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>DOCUMENTO</th>
-                <th>CLIENTE</th>
-                <th>MODELO</th>
-                <th>DATA</th>
-                <th className="number">VALOR</th>
-                <th>SITUAÇÃO</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {state.documents
-                .filter((d) => matches(`${d.number} ${d.customer}`, query))
-                .map((d) => (
-                  <tr key={d.id}>
-                    <td className="strong">{d.number}</td>
-                    <td>{d.customer}</td>
-                    <td>{d.model}</td>
-                    <td>{dateLabel(d.date)}</td>
-                    <td className="number strong">{money(d.total)}</td>
-                    <td>
-                      <Badge tone={info[d.status].tone}>
-                        {info[d.status].label}
-                      </Badge>
-                    </td>
-                    <td>
-                      <button
-                        className="icon-button"
-                        aria-label={`Detalhes do documento ${d.number}`}
-                        onClick={() => setSelected(d.id)}
-                      >
-                        <ArrowUpRight size={17} />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
-      {document && (
-        <Modal
-          title={`${document.model} ${document.number}`}
-          description="Documento fictício para avaliação da interface."
-          onClose={() => setSelected(null)}
-        >
-          <div className="detail-card-content">
-            <Badge tone={info[document.status].tone}>
-              {info[document.status].label}
-            </Badge>
-            <dl className="details-list">
-              <div>
-                <dt>Cliente</dt>
-                <dd>{document.customer}</dd>
-              </div>
-              <div>
-                <dt>Valor</dt>
-                <dd>{money(document.total)}</dd>
-              </div>
-            </dl>
-            <div className="notice notice-info">
-              {document.status === "rejected"
-                ? "Exemplo de pendência: cadastro do destinatário incompleto. Em uma integração real, esta área apresentará o motivo retornado pelo autorizador e o caminho para correção."
-                : "Nenhum XML, protocolo ou autorização real foi gerado. Integração e validação fiscal serão implementadas no backend."}
-            </div>
-          </div>
-          <div className="form-actions">
-            <button
-              className="button button-primary"
-              onClick={() => setSelected(null)}
-            >
-              Entendi
-            </button>
-          </div>
-        </Modal>
-      )}
-    </>
-  );
-}
+export { FiscalDocumentsPage as FiscalPage } from "./fiscal/documents";

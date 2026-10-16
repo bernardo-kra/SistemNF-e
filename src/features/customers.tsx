@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useDemo, uid } from "@/lib/demo-store";
 import { matches, type Customer } from "@/lib/domain";
+import { AddressFields, readAddress } from "@/components/fiscal-fields";
 import {
   Avatar,
   Badge,
@@ -190,11 +191,14 @@ export function CustomersPage() {
               const f = new FormData(e.currentTarget);
               try {
                 saveCustomer({
+                  ...editing,
                   id: editing.id,
                   name: String(f.get("name")).trim(),
                   email: String(f.get("email")).trim(),
                   phone: String(f.get("phone")).trim(),
                   type: String(f.get("type")) as Customer["type"],
+                  document: String(f.get("document") || "").trim(),
+                  fiscalAddress: readAddress(f),
                 });
                 setEditing(null);
               } catch (err) {
@@ -234,6 +238,27 @@ export function CustomersPage() {
                 />
               </Field>
             </div>
+            <details className="fiscal-form-details">
+              <summary>
+                Dados fiscais e endereço · opcionais no cadastro
+              </summary>
+              <p>
+                A preparação fiscal aponta quando estes dados forem necessários
+                para a simulação. Não consultamos situação cadastral.
+              </p>
+              <div className="form-grid">
+                <Field label="CPF / CNPJ" className="full">
+                  <input
+                    name="document"
+                    defaultValue={editing.document || ""}
+                    maxLength={18}
+                    placeholder="CNPJ também aceita letras"
+                    autoCapitalize="characters"
+                  />
+                </Field>
+                <AddressFields address={editing.fiscalAddress} />
+              </div>
+            </details>
             <div className="form-note">
               <Mail size={16} />
               Nenhuma mensagem será enviada por este protótipo.

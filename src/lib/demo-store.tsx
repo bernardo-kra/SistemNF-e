@@ -11,6 +11,25 @@ import type {
   Stage,
 } from "./domain";
 import { TODAY, sumOrder, money } from "./domain";
+import { restoreDemoState } from "./demo-persistence";
+import {
+  normalizeDocument,
+  isValidCnpj,
+  isValidCpf,
+} from "./fiscal/identifiers";
+import {
+  prepareFiscalDocument,
+  transitionFiscalDocument,
+} from "./fiscal/engine";
+import { simulationAdapter } from "./fiscal/simulation-adapter";
+import type {
+  CompanyFiscalProfile,
+  FiscalAction,
+  FiscalModel,
+  FiscalSource,
+  ServiceFiscalProfile,
+  SimulationOutcome,
+} from "./fiscal/types";
 
 const KEY = "sistem:prototype:v1";
 type Context = {
@@ -27,50 +46,15 @@ type Context = {
   createSale: (sale: Sale) => void;
   deliverSale: (id: string) => void;
   importProducts: (key: string, products: Product[]) => void;
+  saveFiscalProfile: (profile: CompanyFiscalProfile) => void;
+  saveServiceFiscal: (profile: ServiceFiscalProfile) => void;
+  prepareFiscal: (source: FiscalSource, model: FiscalModel) => string;
+  fiscalAction: (id: string, action: FiscalAction, reason?: string) => void;
+  processFiscal: (id: string, outcome: SimulationOutcome) => Promise<void>;
   reset: () => void;
 };
 const Store = createContext<Context | null>(null);
 const copySeed = () => structuredClone(seed);
-const storageShape = (value: unknown): value is DemoState => {
-  if (!value || typeof value !== "object") return false;
-  const s = value as DemoState;
-  return (
-    s.version === 1 &&
-    Array.isArray(s.customers) &&
-    s.customers.every(
-      (c) =>
-        typeof c.id === "string" &&
-        typeof c.name === "string" &&
-        typeof c.phone === "string" &&
-        typeof c.email === "string",
-    ) &&
-    Array.isArray(s.products) &&
-    s.products.every(
-      (p) =>
-        typeof p.name === "string" &&
-        typeof p.sku === "string" &&
-        [p.stock, p.reserved, p.price, p.cost].every(Number.isFinite),
-    ) &&
-    Array.isArray(s.orders) &&
-    s.orders.every(
-      (o) =>
-        typeof o.id === "string" &&
-        typeof o.equipment === "string" &&
-        typeof o.serial === "string" &&
-        Array.isArray(o.history) &&
-        [o.parts, o.labor, o.received].every(Number.isFinite),
-    ) &&
-    Array.isArray(s.sales) &&
-    s.sales.every(
-      (sale) => Array.isArray(sale.items) && Number.isFinite(sale.total),
-    ) &&
-    Array.isArray(s.documents) &&
-    s.documents.every(
-      (d) => typeof d.id === "string" && Number.isFinite(d.total),
-    ) &&
-    Array.isArray(s.imports)
-  );
-};
 
 export function DemoProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<DemoState>(copySeed);
@@ -84,9 +68,9 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
       const raw = window.localStorage.getItem(KEY);
       if (raw) {
         const value: unknown = JSON.parse(raw);
-        if (!storageShape(value)) throw new Error("Dados incompatíveis");
-        current.current = value;
-        setState(value);
+        const restored = restoreDemoState(value);
+        current.current = restored;
+        setState(restored);
       }
     } catch {
       setMessage(
@@ -124,11 +108,26 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
     notify,
     saveCustomer(customer) {
       if (!customer.name.trim()) throw new Error("Informe o nome do cliente.");
+      if (
+        customer.document &&
+        !(customer.type === "Empresa"
+          ? isValidCnpj(customer.document)
+          : isValidCpf(customer.document))
+      )
+        throw new Error(
+          "Confira o formato e os dígitos verificadores do CPF/CNPJ. Esta conferência não consulta a Receita Federal.",
+        );
+      const normalized = {
+        ...customer,
+        document: customer.document
+          ? normalizeDocument(customer.document)
+          : undefined,
+      };
       commit((s) => ({
         ...s,
         customers: s.customers.some((c) => c.id === customer.id)
-          ? s.customers.map((c) => (c.id === customer.id ? customer : c))
-          : [customer, ...s.customers],
+          ? s.customers.map((c) => (c.id === customer.id ? normalized : c))
+          : [normalized, ...s.customers],
       }));
       notify("Cliente salvo na demonstração.");
     },
@@ -359,6 +358,93 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
       });
       notify(
         "Importação concluída. Os cadastros foram criados sem alterar o estoque.",
+      );
+    },
+    saveFiscalProfile(profile) {
+      if (profile.cnpj && !isValidCnpj(profile.cnpj))
+        throw new Error(
+          "Confira o CNPJ do emitente. São aceitos CNPJs numéricos e alfanuméricos com dígitos verificadores válidos.",
+        );
+      commit((s) => ({
+        ...s,
+        fiscalProfile: {
+          ...profile,
+          cnpj: normalizeDocument(profile.cnpj),
+          environment: "simulation",
+        },
+      }));
+      notify(
+        "Configuração demonstrativa salva. Nenhuma habilitação fiscal foi realizada.",
+      );
+    },
+    saveServiceFiscal(profile) {
+      commit((s) => ({ ...s, serviceFiscal: { ...profile } }));
+      notify("Perfil de serviço salvo para conferência local.");
+    },
+    prepareFiscal(source, model) {
+      const id = uid();
+      commit((s) => ({
+        ...s,
+        documents: [
+          prepareFiscalDocument(s, source, model, id, new Date().toISOString()),
+          ...s.documents,
+        ],
+      }));
+      notify("Rascunho simulado preparado. Nenhuma nota foi emitida.");
+      return id;
+    },
+    fiscalAction(id, action, reason) {
+      commit((s) => {
+        const next = transitionFiscalDocument(
+          s,
+          id,
+          action,
+          new Date().toISOString(),
+          reason,
+        );
+        return {
+          ...s,
+          documents: s.documents.map((d) => (d.id === id ? next : d)),
+        };
+      });
+      notify("Estado da simulação atualizado; sem efeito fiscal real.");
+    },
+    async processFiscal(id, outcome) {
+      commit((s) => {
+        const next = transitionFiscalDocument(
+          s,
+          id,
+          "begin",
+          new Date().toISOString(),
+        );
+        return {
+          ...s,
+          documents: s.documents.map((d) => (d.id === id ? next : d)),
+        };
+      });
+      const result = await simulationAdapter.process(outcome);
+      const action: FiscalAction =
+        result === "authorized"
+          ? "authorize"
+          : result === "rejected"
+            ? "reject"
+            : "unknown";
+      commit((s) => {
+        const next = transitionFiscalDocument(
+          s,
+          id,
+          action,
+          new Date().toISOString(),
+        );
+        return {
+          ...s,
+          documents: s.documents.map((d) => (d.id === id ? next : d)),
+        };
+      });
+      notify(
+        result === "unknown"
+          ? "Resultado fictício desconhecido. Consulte esta simulação antes de tentar outra."
+          : "Processamento simulado concluído. Não há autorização fiscal real.",
       );
     },
     reset() {

@@ -89,7 +89,13 @@ export function Shell({ children }: { children: React.ReactNode }) {
     else router.push(href);
   };
   const activeLabel =
-    groups.flatMap((g) => g.items).find((item) => item.href === path)?.label ||
+    groups
+      .flatMap((g) => g.items)
+      .find(
+        (item) =>
+          item.href === path ||
+          (item.href === "/fiscal/" && path.startsWith("/fiscal/")),
+      )?.label ||
     (path.includes("importar") ? "Importação de produtos" : "Configurações");
   return (
     <div className="application">
@@ -130,7 +136,9 @@ export function Shell({ children }: { children: React.ReactNode }) {
             <div className="nav-group" key={group.title}>
               <span className="nav-group-label">{group.title}</span>
               {group.items.map((item) => {
-                const active = path === item.href;
+                const active =
+                  path === item.href ||
+                  (item.href === "/fiscal/" && path.startsWith("/fiscal/"));
                 return (
                   <Link
                     className={`nav-item ${active ? "active" : ""}`}
