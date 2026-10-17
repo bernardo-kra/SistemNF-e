@@ -56,6 +56,8 @@ A referência de data da demonstração é 16/10/2026, para manter exemplos e te
 
 ## Organização
 
+A [equipe de agentes](docs/10-equipe-de-agentes.md) define os papeis de analista, desenvolvedor e QA. Os perfis do Codex ficam em `.codex/agents` e herdam as configuracoes da sessao.
+
 - `src/app`: rotas Next.js, estilos globais e tokens locais do design system.
 - `src/components`: estrutura visual e componentes compartilhados.
 - `src/features`: telas e interações por domínio.
