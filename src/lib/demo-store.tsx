@@ -10,8 +10,21 @@ import type {
   ServiceOrder,
   Stage,
 } from "./domain";
-import { TODAY, sumOrder, money } from "./domain";
+import { TODAY, sumOrder } from "./domain";
 import { restoreDemoState } from "./demo-persistence";
+import {
+  prepareAgreement,
+  recordPayment,
+  sourceAgreement,
+  openCashShift as openShift,
+  closeCashShift as closeShift,
+} from "./finance/engine";
+import type {
+  AgreementInput,
+  PaymentInput,
+  OpenShiftInput,
+  CloseShiftInput,
+} from "./finance/types";
 import {
   normalizeDocument,
   isValidCnpj,
@@ -41,7 +54,10 @@ type Context = {
   saveProduct: (product: Product) => void;
   saveOrder: (order: ServiceOrder) => void;
   advanceOrder: (id: string, note?: string) => void;
-  receivePayment: (id: string, cents: number, method: string) => void;
+  createPaymentAgreement: (input: AgreementInput) => string;
+  registerInstallmentPayment: (input: PaymentInput) => string;
+  openCashShift: (input: OpenShiftInput) => string;
+  closeCashShift: (input: CloseShiftInput) => void;
   receiveStock: (id: string, quantity: number, reason: string) => void;
   createSale: (sale: Sale) => void;
   deliverSale: (id: string) => void;
@@ -62,6 +78,7 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
   const [hydrated, setHydrated] = useState(false);
   const [storageAvailable, setStorageAvailable] = useState(true);
   const [message, setMessage] = useState("");
+  const recoveryBlocked = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     try {
@@ -73,8 +90,10 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
         setState(restored);
       }
     } catch {
+      recoveryBlocked.current = true;
+      setStorageAvailable(false);
       setMessage(
-        "Os dados locais não puderam ser recuperados. A demonstração foi reiniciada.",
+        "Os dados locais não puderam ser recuperados e foram preservados. A gravação está bloqueada; exporte o arquivo original antes de restaurar os exemplos nas configurações.",
       );
     }
     setHydrated(true);
@@ -83,7 +102,7 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
   useEffect(() => {
-    if (!hydrated) return;
+    if (!hydrated || recoveryBlocked.current) return;
     try {
       window.localStorage.setItem(KEY, JSON.stringify(state));
       setStorageAvailable(true);
@@ -97,6 +116,10 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
     timer.current = setTimeout(() => setMessage(""), 6500);
   };
   const commit = (update: (state: DemoState) => DemoState) => {
+    if (recoveryBlocked.current)
+      throw new Error(
+        "Os dados originais estão preservados. Resolva a recuperação nas configurações antes de gravar alterações.",
+      );
     const next = update(current.current);
     current.current = next;
     setState(next);
@@ -160,6 +183,19 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
     },
     saveOrder(order) {
       commit((s) => {
+        const existing = s.orders.find((o) => o.id === order.id);
+        if (
+          existing &&
+          sourceAgreement(s, { type: "order", id: order.id }) &&
+          ["customerId", "parts", "labor", "received", "approved"].some(
+            (key) =>
+              existing[key as keyof ServiceOrder] !==
+              order[key as keyof ServiceOrder],
+          )
+        )
+          throw new Error(
+            "Esta OS possui acordo financeiro. Cliente, valores, aprovação e legado estão preservados; renegociação ainda não está disponível.",
+          );
         if (s.orders.some((o) => o.id === order.id))
           return {
             ...s,
@@ -224,34 +260,39 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
       }));
       notify("Etapa da ordem atualizada.");
     },
-    receivePayment(id, cents, method) {
-      commit((s) => ({
-        ...s,
-        orders: s.orders.map((o) => {
-          if (o.id !== id) return o;
-          const remaining = sumOrder(o) - o.received;
-          if (!o.approved)
-            throw new Error(
-              "O orçamento precisa estar aprovado antes de registrar um recebimento.",
-            );
-          if (!Number.isSafeInteger(cents) || cents <= 0 || cents > remaining)
-            throw new Error(
-              "Informe um valor positivo que não ultrapasse o saldo.",
-            );
-          return {
-            ...o,
-            received: o.received + cents,
-            history: [
-              {
-                label: `Recebimento de ${money(cents)} registrado · ${method}`,
-                date: "Agora · demonstração",
-              },
-              ...o.history,
-            ],
-          };
-        }),
-      }));
-      notify("Recebimento registrado na demonstração.");
+    createPaymentAgreement(input) {
+      const id = uid();
+      commit((s) => prepareAgreement(s, input, id, new Date().toISOString()));
+      notify(
+        "Parcelamento salvo. Nenhum recebimento foi criado automaticamente.",
+      );
+      return id;
+    },
+    registerInstallmentPayment(input) {
+      let id = uid();
+      commit((s) => {
+        const next = recordPayment(s, input, id, new Date().toISOString());
+        id = next.finance.payments.find(
+          (p) => p.idempotencyKey === input.idempotencyKey,
+        )!.id;
+        return next;
+      });
+      notify(
+        "Recebimento manual registrado na demonstração. Recibo disponível.",
+      );
+      return id;
+    },
+    openCashShift(input) {
+      const id = uid();
+      commit((s) => openShift(s, input, id, new Date().toISOString()));
+      notify("Turno aberto com saldo escritural; a abertura não gera receita.");
+      return id;
+    },
+    closeCashShift(input) {
+      commit((s) => closeShift(s, input, new Date().toISOString()));
+      notify(
+        "Contagem e diferença preservadas. Nenhum ajuste de saldo foi criado.",
+      );
     },
     receiveStock(id, quantity, reason) {
       if (!Number.isSafeInteger(quantity) || quantity < 1)
@@ -448,6 +489,7 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
       );
     },
     reset() {
+      recoveryBlocked.current = false;
       commit(copySeed);
       notify("Dados de demonstração restaurados.");
     },

@@ -5,6 +5,7 @@ import type {
   ProductFiscalProfile,
   ServiceFiscalProfile,
 } from "./fiscal/types";
+import type { FinanceState } from "./finance/types";
 export type { FiscalDocument } from "./fiscal/types";
 export type Tone = "neutral" | "info" | "success" | "warning" | "danger";
 export type Stage =
@@ -70,6 +71,7 @@ export interface ServiceOrder {
   created: string;
   parts: number;
   labor: number;
+  /** Acumulado legado, sem origem de caixa. Novos pagamentos são derivados por orderReceived. */
   received: number;
   approved: boolean;
   tested: boolean;
@@ -85,7 +87,8 @@ export interface Sale {
   total: number;
 }
 export interface DemoState {
-  version: 2;
+  version: 3;
+  finance: FinanceState;
   customers: Customer[];
   products: Product[];
   orders: ServiceOrder[];

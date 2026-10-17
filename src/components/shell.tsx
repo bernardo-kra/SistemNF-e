@@ -276,8 +276,9 @@ export function Shell({ children }: { children: React.ReactNode }) {
         <main id="main-content" className="main-content">
           {!storageAvailable && (
             <div className="notice notice-warning">
-              Seu navegador não permite salvar os dados. As alterações ficam
-              disponíveis somente nesta sessão.
+              A gravação local está bloqueada ou indisponível. Em Configurações,
+              exporte o arquivo original antes de restaurar os exemplos. Não
+              dependa de alterações ainda sem confirmação de gravação.
             </div>
           )}
           {children}

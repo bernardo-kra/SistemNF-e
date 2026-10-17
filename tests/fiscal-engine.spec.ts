@@ -68,12 +68,14 @@ test("migração v1 preserva dados operacionais e diferencia exemplos de simula�
       ...legacy.customers.slice(1),
     ],
   });
-  expect(restored.version).toBe(2);
+  expect(restored.version).toBe(3);
   expect(restored.customers[0].name).toBe("Cadastro anterior");
   expect(restored.sales).toEqual(legacy.sales);
   expect(restored.orders).toEqual(legacy.orders);
   expect(restored.products).toEqual(legacy.products);
   expect(restored.fiscalProfile.cnpj).toBe("");
+  expect(restored.finance.movements).toEqual([]);
+  expect(restored.finance.payments).toEqual([]);
   expect(restored.documents.every((d) => d.mode === "example")).toBe(true);
 });
 

@@ -1,4 +1,6 @@
 import type { DemoState } from "./domain";
+import { defaultFinance } from "./finance/engine";
+import { restoreFinanceState } from "./finance/persistence";
 import {
   defaultCompanyFiscal,
   defaultServiceFiscal,
@@ -18,7 +20,7 @@ const address = (value: unknown): value is FiscalAddress =>
   strings(value, Object.keys(emptyAddress));
 
 export function restoreDemoState(value: unknown): DemoState {
-  if (!record(value) || ![1, 2].includes(Number(value.version)))
+  if (!record(value) || ![1, 2, 3].includes(Number(value.version)))
     throw new Error("Versão de armazenamento incompatível.");
   const arrays = [
     "customers",
@@ -117,7 +119,11 @@ export function restoreDemoState(value: unknown): DemoState {
     service = s.serviceFiscal as ServiceFiscalProfile;
   return structuredClone({
     ...s,
-    version: 2,
+    version: 3,
+    finance:
+      Number(value.version) === 3
+        ? restoreFinanceState(value.finance, s)
+        : defaultFinance(),
     fiscalProfile: profile,
     serviceFiscal: service,
     documents: s.documents.map((d) => ({

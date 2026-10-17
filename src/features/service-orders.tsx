@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { orderReceived, sourceAgreement } from "@/lib/finance/engine";
 import {
   Plus,
   Wrench,
@@ -67,6 +68,10 @@ export function OrdersPage() {
     if (params.has("nova")) setEditing(newOrder(state.customers[0]?.id || ""));
   }, []);
   const selectedOrder = state.orders.find((o) => o.id === selected);
+  const receivedTotal = selectedOrder ? orderReceived(state, selectedOrder) : 0;
+  const paymentAgreement =
+    selectedOrder &&
+    sourceAgreement(state, { type: "order", id: selectedOrder.id });
   const customer =
     selectedOrder &&
     state.customers.find((c) => c.id === selectedOrder.customerId);
@@ -321,16 +326,15 @@ export function OrdersPage() {
                           <strong>
                             {!selectedOrder.approved
                               ? "Recebível não gerado"
-                              : selectedOrder.received >=
-                                  sumOrder(selectedOrder)
+                              : receivedTotal >= sumOrder(selectedOrder)
                                 ? "Quitado"
-                                : selectedOrder.received > 0
+                                : receivedTotal > 0
                                   ? "Recebido parcialmente"
                                   : "Em aberto"}
                           </strong>
                           <p>
                             {selectedOrder.approved
-                              ? `${money(selectedOrder.received)} recebido`
+                              ? `${money(receivedTotal)} recebido${selectedOrder.received > 0 ? ` · ${money(selectedOrder.received)} de histórico informado` : ""}`
                               : "Aguardando aprovação"}
                           </p>
                         </div>
@@ -357,8 +361,14 @@ export function OrdersPage() {
                       </div>
                     </div>
                     {selectedOrder.approved && (
-                      <Link className="aside-link" href="/financeiro/">
-                        Acompanhar recebimento <ArrowRight size={15} />
+                      <Link
+                        className="aside-link"
+                        href={`/financeiro/?source=order:${selectedOrder.id}`}
+                      >
+                        {paymentAgreement
+                          ? "Acompanhar parcelas"
+                          : "Organizar pagamento"}{" "}
+                        <ArrowRight size={15} />
                       </Link>
                     )}
                   </Panel>

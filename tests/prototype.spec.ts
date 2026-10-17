@@ -1,11 +1,18 @@
 import { test, expect } from "@playwright/test";
 
-test("busca global abre outro registro mesmo na página atual", async ({ page }) => {
+test("busca global abre outro registro mesmo na página atual", async ({
+  page,
+}) => {
   await page.goto("/ordens/?os=o1042");
   await page.getByRole("button", { name: /Buscar na plataforma/ }).click();
   await page.getByRole("dialog").getByRole("textbox").fill("1041");
-  await page.getByRole("dialog").getByRole("button", { name: /OS #1041/ }).click();
-  await expect(page.getByRole("heading", { name: "OS #1041", exact: true })).toBeVisible();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: /OS #1041/ })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "OS #1041", exact: true }),
+  ).toBeVisible();
 });
 
 test("nova OS registra equipamento e não cria recebível antes de aprovação", async ({
@@ -119,12 +126,74 @@ test("recebimento parcial preserva saldo e aprovação pendente não aparece com
   await expect(
     page.getByRole("row").filter({ hasText: "OS #1042" }),
   ).toHaveCount(0);
+  await page.getByRole("button", { name: "Criar acordo", exact: true }).click();
+  await expect(
+    page
+      .getByLabel("Operação de origem")
+      .locator('option[value="order:o1042"]'),
+  ).toHaveCount(0);
+  await page.getByLabel("Operação de origem").selectOption("order:o1041");
+  await page.getByLabel("Entrada (R$)", { exact: true }).fill("0");
+  await page.getByLabel("Quantidade de parcelas", { exact: true }).fill("1");
+  await page
+    .getByLabel("Primeiro vencimento", { exact: true })
+    .fill("2026-10-16");
+  await page
+    .getByRole("button", { name: "Confirmar acordo", exact: true })
+    .click();
   const row = page.getByRole("row").filter({ hasText: "OS #1041" });
-  await row.getByRole("button", { name: "Receber", exact: true }).click();
-  await page.getByLabel("Valor recebido").fill("20");
-  await page.getByRole("button", { name: "Confirmar recebimento" }).click();
+  await row
+    .getByRole("button", {
+      name: "Receber Parcela 1/1 de OS #1041",
+      exact: true,
+    })
+    .click();
+  await page.getByLabel("Valor a aplicar (R$)", { exact: true }).fill("20");
+  await page
+    .getByLabel("Forma de pagamento", { exact: true })
+    .selectOption("pix");
+  await page
+    .getByLabel("Conta de destino", { exact: true })
+    .selectOption("bank-demo");
+  await page
+    .getByLabel("Responsável pela conferência", { exact: true })
+    .fill("Operadora QA");
+  await page
+    .getByLabel("Referência do crédito", { exact: true })
+    .fill("CREDITO-FICTICIO-QA");
+  await page
+    .getByLabel("Conferi o crédito na conta de destino", { exact: true })
+    .check();
+  await page
+    .getByRole("button", { name: "Confirmar recebimento", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Recibo demonstrativo", exact: true }),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
   await expect(row).toContainText("R$ 75,00");
-  await expect(row).toContainText("R$ 120,00");
+  const saved = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem("sistem:prototype:v1")!),
+  );
+  expect(
+    saved.orders.find((order: { id: string }) => order.id === "o1041").received,
+  ).toBe(10000);
+  expect(
+    saved.finance.allocations.reduce(
+      (sum: number, allocation: { amount: number }) => sum + allocation.amount,
+      0,
+    ),
+  ).toBe(2000);
+  expect(saved.finance.movements).toHaveLength(1);
+  await page.goto("/ordens/?os=o1041");
+  await expect(
+    page.getByText("R$ 120,00 recebido · R$ 100,00 de histórico informado", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Editar diagnóstico", exact: true }),
+  ).toBeDisabled();
 });
 
 test("importação cria somente produtos novos e bloqueia o mesmo documento", async ({

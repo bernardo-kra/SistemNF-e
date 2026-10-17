@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useFinancialDate } from "@/components/use-financial-date";
 import {
   Plus,
   ArrowRight,
@@ -19,17 +20,19 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useDemo } from "@/lib/demo-store";
-import { money, stages, TODAY, dateLabel, sumOrder } from "@/lib/domain";
+import { money, stages, TODAY, dateLabel } from "@/lib/domain";
+import { installmentBalance } from "@/lib/finance/engine";
 import { Avatar, Badge, PageHeader, Panel } from "@/components/ui";
 
 export function Dashboard() {
   const { state } = useDemo();
+  const financeDay = useFinancialDate(state.finance);
   const active = state.orders.filter((o) => o.stage !== "delivered");
   const pending = active.filter((o) => o.stage === "awaiting_approval");
   const late = active.filter((o) => o.due < TODAY);
-  const due = active
-    .filter((o) => o.approved && o.due <= TODAY)
-    .reduce((sum, o) => sum + sumOrder(o) - o.received, 0);
+  const due = state.finance.installments
+    .filter((item) => item.due <= financeDay)
+    .reduce((sum, item) => sum + installmentBalance(state, item.id), 0);
   const low = state.products.filter((p) => p.stock - p.reserved < p.minimum);
   const metrics = [
     {
@@ -60,10 +63,10 @@ export function Dashboard() {
       href: "/ordens/",
     },
     {
-      label: "A receber até hoje",
+      label: "Parcelas a receber até hoje",
       value: money(due),
       icon: Wallet,
-      caption: "Saldo previsto · ainda não recebido",
+      caption: "Acordos com vencimento financeiro definido",
       className: "purple",
       href: "/financeiro/",
     },

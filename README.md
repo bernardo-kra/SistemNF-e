@@ -30,7 +30,8 @@ O comando de build também executa `postbuild`, que adiciona nomes portáveis ao
 - Painel com indicadores calculados a partir dos registros.
 - Clientes e produtos: busca, filtros, criação e edição.
 - OS: entrada, diagnóstico e valores, aprovação registrada, execução, checklist e entrega. Histórico com responsável pela aprovação/retirada.
-- Financeiro: recebimentos manuais parciais/totais de OS aprovadas; forma e valor registrados no histórico.
+- Financeiro: acordo por venda confirmada/OS aprovada, entrada e parcelas com valores exatos e vencimentos próprios/editáveis, recebimento parcial em dinheiro/Pix/transferência e recibos preservados. Dinheiro exige turno; Pix/transferência exigem conferência manual identificada.
+- Caixa e contas: duas contas fictícias com saldo inicial zero, abertura/fechamento de turno com contagem/diferença, novos movimentos de entrada e histórico de recebimentos. Não há integração bancária ou fluxo de caixa completo.
 - Produtos/estoque: catálogo separado do saldo, entrada manual com referência e reserva/saída por venda.
 - Vendas: um item por pedido, reserva por quantidade e entrega de produtos sem controle por série.
 - Importação: exemplo pronto e leitura de XML no navegador, vínculos por item, preço de venda, revisão e bloqueio de documento repetido. Novos produtos entram com estoque zero.
@@ -46,13 +47,13 @@ Não há OCR, banco de dados, envio de mensagens, transação bancária, emissã
 
 OS não baixa peças do estoque nesta etapa. A NFS-e simulada considera somente o serviço e destaca as peças excluídas; a operação de mercadorias das peças continua pendente. Produtos serializados aparecem no catálogo e no pedido demonstrativo, mas conferência e venda de séries individuais ainda não estão implementadas; a entrega desse pedido está desabilitada. Os dados fiscais de exemplo não representam orientação tributária.
 
-O estado local foi atualizado para a versão 2, preservando a chave de armazenamento e migrando registros válidos da versão 1. Códigos declarados têm conferência de formato; CPF/CNPJ também têm conferência dos dígitos, incluindo CNPJ alfanumérico, sem consulta cadastral. Não há cálculo tributário. O bloqueio de documento duplicado é local, sem garantias de concorrência entre abas/computadores.
+O estado local está na versão 3, mantendo a chave de armazenamento e migrando registros válidos das versões 1 e 2. Recebimentos antigos das OS são preservados como histórico informado; não geram movimentos com conta/data inventadas. Falha na recuperação preserva o arquivo original e bloqueia gravação até uma ação explícita; Configurações oferece exportação do arquivo original. Códigos fiscais declarados têm conferência de formato; CPF/CNPJ também têm conferência dos dígitos, incluindo CNPJ alfanumérico, sem consulta cadastral. Não há cálculo tributário. Bloqueios locais não garantem concorrência entre abas/computadores ou isolamento de servidor.
 
 O [plano executado e os próximos passos](docs/08-etapa-fiscal-e-proximos-passos.md) descrevem as regras da simulação, os contratos propostos e a sequência até o piloto fiscal real.
 
-O [desenho financeiro ampliado](docs/09-financeiro-pagamentos-e-fluxo-de-caixa.md) especifica entrada/parcelas, pagamento mensal na loja, dinheiro/troco, Pix, cartão e repasse, cheque/compensação, pagamento misto, contas a pagar, caixa e conciliação. É uma especificação futura: essas funcionalidades não foram adicionadas à tela nesta revisão. `OS.received` continua sendo um valor acumulado demonstrativo, insuficiente para calcular saldo bancário ou caixa histórico. O plano define a substituição por registros próprios e a preservação dos valores legados sem inventar movimentos.
+O [desenho financeiro ampliado](docs/09-financeiro-pagamentos-e-fluxo-de-caixa.md) continua como direção do módulo completo. O [primeiro recorte implementado pela equipe](docs/11-financeiro-primeiro-recorte.md) entrega acordos, parcelas, recebimentos manuais, recibos e turno mínimo. Cartão, cheque, pagamento misto numa mesma baixa, contas a pagar, conciliação bancária, juros, renegociação, estorno e reembolso continuam pendentes. Os novos registros são próprios, sem reescrever `OS.received`; resumos de OS somam histórico informado e novas alocações uma única vez. Sem estorno, use somente dados fictícios e confira antes de confirmar.
 
-A referência de data da demonstração é 16/10/2026, para manter exemplos e testes reproduzíveis.
+A referência operacional dos exemplos permanece em 16/10/2026. O financeiro usa a data atual e o instante real do registro, com dia civil em `America/Sao_Paulo`; o usuário escolhe os vencimentos, mas não retrodata recebimentos. A previsão contempla só parcelas de acordos confirmados, separando vencidos; não é saldo bancário real nem projeção completa de caixa.
 
 ## Organização
 
@@ -65,6 +66,7 @@ A [equipe de agentes](docs/10-equipe-de-agentes.md) define os papeis de analista
 - `src/lib/seed.ts`: registros fictícios.
 - `src/lib/demo-store.tsx`: operações e persistência simuladas. Na integração real, substituir por serviços HTTP preservando contratos, autorização e validações no servidor.
 - `src/lib/fiscal`: tipos, conferência estrutural, transições e adaptador exclusivamente simulado.
+- `src/lib/finance`: tipos, regras e validação dos registros financeiros locais; o servidor continua pendente.
 - `src/lib/demo-persistence.ts`: restauração e migração dos dados locais.
 - `tests`: jornadas de navegador com foco em persistência, estados, estoque e importação.
 

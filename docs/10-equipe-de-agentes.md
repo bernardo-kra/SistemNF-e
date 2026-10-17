@@ -47,7 +47,7 @@ Esses exemplos sao instrucoes para o coordenador, nao comandos de terminal. Tare
 - A aplicacao e um prototipo Next.js/React/TypeScript/CSS com exportacao estatica. Verificar no README/codigo se isso mudou antes de planejar.
 - Fiscal e financeiro simulados nao comprovam integracao bancaria/fiscal, conformidade ou isolamento de empresas.
 - Banco operacional por empresa, uma base de codigo e parceiras independentes sao decisoes do produto; nao trocar o modelo silenciosamente.
-- No financeiro, o documento `docs/09-financeiro-pagamentos-e-fluxo-de-caixa.md` especifica comportamento futuro. Hoje `OS.received` nao substitui titulos, pagamentos, alocacoes, liquidacoes e movimentos de conta.
+- No financeiro, `docs/09-financeiro-pagamentos-e-fluxo-de-caixa.md` especifica a direcao ampliada. O primeiro recorte implementado esta em `docs/11-financeiro-primeiro-recorte.md`: `OS.received` permanece legado, separado dos novos titulos, pagamentos, alocacoes e movimentos de conta.
 - Testes devem verificar comportamento e invariantes de maior risco. Nenhum agente declara execucao, aprovacao ou cobertura que nao observou.
 - O conhecimento duravel fica nos arquivos e relatorios; nao ha promessa de memoria permanente ou retreinamento do modelo.
 
@@ -62,3 +62,9 @@ Os tres agentes foram iniciados nesta sessao com as instrucoes de seus perfis pa
 - **QA:** conferiu os campos e delimitadores dos perfis, igualdade das copias e separacao das responsabilidades. Nao encontrou defeito estrutural. Prioridades futuras: migracao sem caixa ficticio, diferenca entre pagamento e liquidacao e testes de parcelas/centavos/datas/duplicidade. Esses riscos nao foram apresentados como funcionalidades testadas ou homologadas.
 
 **Verificacao realizada:** tres pares de perfis identicos, campos obrigatorios preenchidos, documentacao e links locais conferidos. O QA nao encontrou parser TOML completo instalado; a validacao foi estrutural. Descoberta automatica dos arquivos pelo cliente nao foi testada. Nao foram executadas suites/build do produto nesta rodada, pois nao houve mudanca de codigo funcional.
+
+## Rodada de implementacao financeira — 17/10/2026
+
+A pedido do usuario, os tres agentes discutiram e executaram o [primeiro recorte financeiro](11-financeiro-primeiro-recorte.md). O analista definiu regras e criterios; o desenvolvedor implementou dominio, migracao e persistencia; o QA escreveu e executou verificacoes independentes. O coordenador integrou as telas e os consumidores de saldo, fez revisao e verificou o artefato de producao.
+
+As decisoes conjuntas anteciparam um turno minimo para aceitar dinheiro, mantiveram valores legados sem caixa ficticio e limitaram Pix/transferencia a credito conferido manualmente. A revisao corrigiu a cronologia entre gravacao e restauracao, a atualizacao da data financeira na virada do dia e a visibilidade da acao Receber no celular. Resultados e pendencias estao registrados no relatorio, sem tratar a simulacao como integracao real.

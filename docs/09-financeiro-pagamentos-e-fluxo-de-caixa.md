@@ -2,11 +2,11 @@
 
 Especificação revisada em 16/10/2026 para lojas de eletrônicos e manutenção de TI. Trata dos recebimentos dos clientes da loja; a mensalidade paga pela loja à plataforma pertence ao módulo de assinatura, em outro contexto.
 
-**Estado:** requisitos e desenho de produto. A tela atual demonstra somente recebimentos manuais de OS aprovadas. Parcelas, cheques, agenda de operadoras, contas a pagar, conciliação e caixa descritos aqui ainda não foram implementados. Nenhuma integração bancária foi contratada ou homologada.
+**Estado revisado em 17/10/2026:** especificação do módulo completo. Um primeiro recorte foi implementado com acordos de venda/OS, entrada e parcelas, recebimentos parciais manuais em dinheiro/Pix/transferência, recibos, movimentos novos e turno mínimo. O restante deste documento descreve a direção ampliada: cartão/cheque, pagamento misto numa mesma baixa, pagar, conciliação bancária, estorno e fluxo de caixa completo continuam pendentes. Nenhuma integração bancária foi contratada ou homologada. Decisões e evidências da entrega ficam no documento `11-financeiro-primeiro-recorte.md` do repositório da aplicação.
 
 ## Decisão principal
 
-[Certeza] O modelo atual, que acumula `OS.received` e registra o método em texto no histórico, é insuficiente para estes fluxos. Não distingue dívida, instrumento recebido, liquidação, taxa e conta de destino. Selecionar “cartão” nesse formulário não implementa controle de cartão.
+[Certeza] O modelo anterior, que acumulava `OS.received` e registrava o método em texto no histórico, era insuficiente para estes fluxos. O recorte inicial agora preserva esse valor como histórico informado e usa registros financeiros próprios para novos recebimentos. Cartão/cheque não estão habilitados como simples opções sem seus estados e liquidação.
 
 Adotar cinco registros relacionados, com identidades próprias:
 

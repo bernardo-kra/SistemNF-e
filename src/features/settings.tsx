@@ -26,8 +26,30 @@ import {
 } from "@/components/ui";
 
 export function SettingsPage() {
-  const { state, reset, notify } = useDemo();
+  const { state, reset, notify, storageAvailable } = useDemo();
   const [confirm, setConfirm] = useState(false);
+  const downloadOriginal = () => {
+    try {
+      const raw = window.localStorage.getItem("sistem:prototype:v1");
+      if (raw === null) {
+        notify("Nenhum arquivo local original foi encontrado.");
+        return;
+      }
+      const url = URL.createObjectURL(
+        new Blob([raw], { type: "application/json;charset=utf-8" }),
+      );
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = "sistem-original-local.json";
+      anchor.click();
+      setTimeout(() => URL.revokeObjectURL(url), 0);
+      notify("Cópia original exportada, sem alterar os dados locais.");
+    } catch {
+      notify(
+        "Não foi possível ler o arquivo local. Verifique as permissões do navegador.",
+      );
+    }
+  };
   const download = () => {
     const blob = new Blob([JSON.stringify(state, null, 2)], {
       type: "application/json",
@@ -48,6 +70,28 @@ export function SettingsPage() {
         description="Conheça os limites desta etapa e gerencie os dados de demonstração."
       />
       <div className="settings-grid">
+        {!storageAvailable && (
+          <Panel
+            title="Recuperar dados locais"
+            subtitle="A gravação está bloqueada ou indisponível."
+          >
+            <div className="detail-card-content">
+              <p className="body-copy">
+                Exporte uma cópia exata do arquivo local antes de restaurar os
+                exemplos. Se a recuperação falhou, seus dados originais foram
+                mantidos; a exportação normal da demonstração contém somente o
+                estado que pôde ser aberto.
+              </p>
+              <button
+                className="button button-secondary"
+                onClick={downloadOriginal}
+              >
+                <Download size={16} />
+                Exportar arquivo local original
+              </button>
+            </div>
+          </Panel>
+        )}
         <Panel title="Empresa de demonstração">
           <div className="detail-card-content">
             <div className="equipment-heading">
