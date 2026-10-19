@@ -30,8 +30,10 @@ O comando de build também executa `postbuild`, que adiciona nomes portáveis ao
 - Painel com indicadores calculados a partir dos registros.
 - Clientes e produtos: busca, filtros, criação e edição.
 - OS: entrada, diagnóstico e valores, aprovação registrada, execução, checklist e entrega. Histórico com responsável pela aprovação/retirada.
-- Financeiro: acordo por venda confirmada/OS aprovada, entrada e parcelas com valores exatos e vencimentos próprios/editáveis, recebimento parcial em dinheiro/Pix/transferência e recibos preservados. Dinheiro exige turno; Pix/transferência exigem conferência manual identificada.
+- Financeiro: acordo por venda confirmada/OS aprovada, entrada e parcelas com valores exatos e vencimentos próprios/editáveis, recebimento parcial em dinheiro/Pix/transferência e recibos preservados. Dinheiro exige turno, com abertura dentro do recebimento sem perder os dados preenchidos; abrir não baixa a parcela. Pix/transferência exigem conferência manual identificada.
 - Caixa e contas: duas contas fictícias com saldo inicial zero, abertura/fechamento de turno com contagem/diferença, novos movimentos de entrada e histórico de recebimentos. Não há integração bancária ou fluxo de caixa completo.
+- Relatórios: recebimentos, parcelas com data-base, vendas e OS, com filtros por período/consumidor, meios e contas quando aplicáveis, totais e exportação CSV da seleção. Valores comerciais, recebimentos e legado de OS aparecem separados.
+- Diagnóstico: ocorrências automáticas de comandos rejeitados, armazenamento e erros globais, com código para suporte, filtros e exportação JSON. Histórico independente com até 200 eventos e descarte de mensagens brutas, parâmetros de URL e dados dos cadastros.
 - Produtos/estoque: catálogo separado do saldo, entrada manual com referência e reserva/saída por venda.
 - Vendas: um item por pedido, reserva por quantidade e entrega de produtos sem controle por série.
 - Importação: exemplo pronto e leitura de XML no navegador, vínculos por item, preço de venda, revisão e bloqueio de documento repetido. Novos produtos entram com estoque zero.
@@ -55,9 +57,11 @@ O [desenho financeiro ampliado](docs/09-financeiro-pagamentos-e-fluxo-de-caixa.m
 
 A referência operacional dos exemplos permanece em 16/10/2026. O financeiro usa a data atual e o instante real do registro, com dia civil em `America/Sao_Paulo`; o usuário escolhe os vencimentos, mas não retrodata recebimentos. A previsão contempla só parcelas de acordos confirmados, separando vencidos; não é saldo bancário real nem projeção completa de caixa.
 
+Em **Diagnóstico**, copie o código mostrado na notificação de falha, filtre a ocorrência e use **Exportar diagnóstico** para obter o JSON de suporte. A chave `sistem:diagnostics:v1` é separada dos dados operacionais; se a gravação falhar, o histórico fica somente em memória. Não há envio automático, painel central de suporte ou identidade autenticada de empresa: o identificador é desta instalação local. Em **Relatórios**, escolha o tipo e o período e use **Exportar CSV**; somente Parcelas permite calcular saldo numa data-base histórica. OS e vendas mostram a situação atual. Decisões, testes e limites estão em [Diagnóstico e relatórios](docs/12-logs-e-relatorios.md).
+
 ## Organização
 
-A [equipe de agentes](docs/10-equipe-de-agentes.md) define os papeis de analista, desenvolvedor e QA. Os perfis do Codex ficam em `.codex/agents` e herdam as configuracoes da sessao.
+A [equipe de agentes](docs/10-equipe-de-agentes.md) define sete papéis: orquestrador, analista, arquiteto, desenvolvedor, QA e Segurança, revisor e especialista sob demanda. O agente principal coordena e seleciona os papéis necessários, sem iniciar todos por rotina. O guia inclui contratos de delegação/entrega, limites de autonomia e critérios para reduzir digitação repetida, trocas de tela e lançamentos manuais evitáveis. Os perfis do Codex ficam em `.codex/agents` e herdam as configurações da sessão. Alterar essas instruções não implementa as melhorias propostas para o balcão.
 
 - `src/app`: rotas Next.js, estilos globais e tokens locais do design system.
 - `src/components`: estrutura visual e componentes compartilhados.
@@ -67,6 +71,8 @@ A [equipe de agentes](docs/10-equipe-de-agentes.md) define os papeis de analista
 - `src/lib/demo-store.tsx`: operações e persistência simuladas. Na integração real, substituir por serviços HTTP preservando contratos, autorização e validações no servidor.
 - `src/lib/fiscal`: tipos, conferência estrutural, transições e adaptador exclusivamente simulado.
 - `src/lib/finance`: tipos, regras e validação dos registros financeiros locais; o servidor continua pendente.
+- `src/lib/diagnostics`: catálogo controlado, projeção dos eventos, filtros e buffer local independente.
+- `src/lib/reports`: consultas puras, totais em centavos e CSV dos registros selecionados.
 - `src/lib/demo-persistence.ts`: restauração e migração dos dados locais.
 - `tests`: jornadas de navegador com foco em persistência, estados, estoque e importação.
 

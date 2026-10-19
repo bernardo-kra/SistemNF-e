@@ -48,6 +48,8 @@ const groups = [
       { href: "/parceiros/", label: "Parceiros", icon: Handshake },
       { href: "/financeiro/", label: "Financeiro", icon: Wallet },
       { href: "/fiscal/", label: "Documentos fiscais", icon: FileText },
+      { href: "/relatorios/", label: "Relatórios", icon: FileText },
+      { href: "/diagnostico/", label: "Diagnóstico", icon: CircleHelp },
     ],
   },
 ];

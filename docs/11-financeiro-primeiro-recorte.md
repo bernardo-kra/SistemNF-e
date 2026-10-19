@@ -178,3 +178,69 @@ O parecer do QA é **aprovado no escopo verificado de entradas demonstrativas**,
 Antes de produção, além do backend e das identidades reais, será necessário completar correções/estornos e reembolsos, saídas/contas a pagar, movimentações de caixa, política de crédito, conciliação e os meios aceitos pelo cliente piloto. Cartão ou cheque não poderão ser habilitados apenas como opções de texto.
 
 Não houve pesquisa normativa nova para este recorte: trata-se de decisões internas do produto, sem declaração de conformidade fiscal, bancária, contábil ou legal.
+
+## Verificação da base pela equipe — 18/10/2026
+
+Na rodada conjunta, o QA definiu o plano pelos critérios existentes antes de executar os comandos. Executou `npm.cmd run typecheck` com saída 0 em 7,863 segundos e `npm.cmd test` com saída 0 em 96,609 segundos. Nesta execução única passaram três checks estáticos e 54 testes Playwright, sem falhas ou casos ignorados: 22 de domínio financeiro, sete financeiros de navegador, nove de domínio fiscal, seis fiscais de navegador e dez regressões operacionais. `test-results/.last-run.json` registrou `passed`, sem testes falhos. O servidor iniciado pelo Playwright foi encerrado após a execução.
+
+O parecer foi **Aprovado no escopo verificado da simulação existente**. Não houve novo build, alteração de produto ou teste escrito nesta rodada. Esses resultados não verificam o recorte planejado abaixo, produção, integração bancária, isolamento real ou concorrência entre abas. Os relatos de 17/10 permanecem históricos, separados desta execução.
+
+## Abertura de caixa no recebimento
+
+**Estado em 18/10/2026: implementado e verificado; tipos, 15 testes do recorte, regressão completa e build aprovados.** O usuário autorizou executar o plano após a rodada de análise. QA escreveu e executou os testes antes do código; desenvolvedor implementou a interface; QA verificou o comportamento e revisor examinou o diff de forma independente. Receber diretamente na venda e receber várias parcelas juntas permanecem evoluções separadas.
+
+### Problema identificado e jornada implementada
+
+O atendente já selecionou a parcela e informou os dados do recebimento. Antes da melhoria, a interface mandava fechar a janela e abrir o caixa em outra aba. O fechamento desmontava `PaymentModal` e perdia seus estados locais; o teste existente `tests/finance-browser.spec.ts:180` percorre esse desvio e preenche novamente método, valor aplicado, entregue e conferente. Essa lacuna operacional motivou o recorte, sem defeito monetário reproduzido na análise inicial.
+
+No recebimento em dinheiro sem turno, a ação **Abrir caixa nesta conta** mantém a mesma parcela e revela a abertura no mesmo diálogo. Método, conta, valores e conferente ficam preservados. O conferente é sugerido como operador em campo separado, visível e editável; não há sobrescrita do conferente nem identidade autenticada presumida. Confirmar a abertura cria somente o turno e retorna ao recebimento preenchido. Pagar continua exigindo outra confirmação explícita.
+
+O especialista identificou na sequência do teste anterior 12 interações após o primeiro preenchimento, com duas trocas de aba e quatro controles preenchidos novamente. Essa contagem vem da leitura do cenário, não de ensaio com atendentes ou medição de produtividade. Os novos testes verificam que a abertura contextual permite continuar sem essas trocas de aba e repetições, mantendo as conferências financeiras; não foi medido ganho de tempo com usuários reais.
+
+### Cenários definidos antes do código
+
+| ID | Dado / Quando | Resultado esperado |
+| --- | --- | --- |
+| ABR-01 | Parcela de R$ 300; dinheiro, conta física ativa, aplicar R$ 150, entregar R$ 200, conferente Ana e nenhum turno; confirmar abertura contextual. | Preservar parcela e todos os dados; criar um turno e zero pagamentos, alocações, movimentos ou recibos. Saldo da parcela continua R$ 300; após concluir a gravação local, recarga restaura o turno sem recebimento. |
+| ABR-02 | Após a abertura, confirmar explicitamente o recebimento; repetir a mesma tentativa e recarregar. | Exatamente um pagamento, uma alocação e um movimento de R$ 150; troco de R$ 50, saldo de R$ 150 e recibo preservados. Abrir o caixa nunca dispara essa baixa. |
+| ABR-03 | Cancelar a etapa de abertura pelo botão ou Escape; em outro ensaio, abrir o turno e depois cancelar o recebimento. | Na primeira situação, manter o diálogo aberto e retornar ao recebimento preenchido e ao acionador da abertura, sem criar turno. Na segunda, turno permanece aberto e não há pagamento; cancelar recebimento não desfaz a abertura. |
+| ABR-04 | Operador vazio/espaços ou conta inválida/inativa; tentar abrir e depois corrigir. | Bloquear sem gravação parcial; apresentar a correção, preservar dados financeiros e permitir nova tentativa. Operador editado não altera o conferente. |
+| ABR-05 | Já existe turno da mesma conta, inclusive criado entre o início e a confirmação no estado local. | Não criar segundo turno. Atualizar o contexto ou informar conflito preservando os dados; só usar turno válido no pagamento. Não prometer coordenação entre abas. |
+| ABR-06 | Percorrer abertura e recebimento por teclado e em 390 × 844; verificar também Pix/transferência. | Foco entra no operador e retorna de modo previsível ao cancelar/concluir, sem sair do modal. Enter na etapa de abertura não recebe a parcela. Ações alcançáveis sem rolagem horizontal; meios bancários não mostram abertura e mantêm referência/conferente/conferência manual. |
+| ABR-07 | Conta tem turno ainda aberto com dia de abertura anterior ao dia financeiro atual. | Não tratar o turno como apto, não criar outro e não fechar/ajustar automaticamente. Explicar que é necessário tratar o turno anterior em Caixa e contas; preservar dados enquanto o usuário permanece na jornada. Fechamento contextual fica fora deste recorte. |
+
+ABR-01 a ABR-06 foram definidos pelo analista e complementados pelo especialista; o QA acrescentou a exceção ABR-07, confirmada na revisão de `src/lib/finance/engine.ts:573`. O QA escreveu [15 testes](../tests/finance-cash-opening.spec.ts) antes da implementação: 13 com navegador, incluindo repetição da tentativa por contrato público, e dois puros de domínio. Conflito de estado atualizado e repetição de pagamento são verificados no domínio; não constituem teste de coordenação entre abas ou servidor. Os resultados de execução e o ajuste justificado do estado inicial de um teste estão registrados abaixo.
+
+### Implementação e limites
+
+- `PaymentModal`, em `src/features/finance/page.tsx`, permanece montado e alterna os formulários de abertura e recebimento, sem aninhá-los ou abrir outro diálogo. A ação que inicia a etapa não envia o formulário de recebimento.
+- `Modal`, em `src/components/ui.tsx`, recebeu propriedades opcionais de cancelamento e teclado. Somente o recebimento usa os novos tratamentos: Escape durante a abertura impede o fechamento nativo e retorna ao recebimento preenchido; Tab/Shift+Tab circulam nas bordas entre os controles visíveis e habilitados da etapa atual. Demais consumidores mantêm o comportamento anterior.
+- O foco vai ao operador ao iniciar, ao acionador ao cancelar e à confirmação de recebimento ao concluir a abertura. Operador e conferente são estados independentes; Enter durante a abertura não recebe a parcela.
+- `openCashShift({ accountId, operator })` continua exclusivo da abertura; `registerInstallmentPayment` é chamado somente na confirmação posterior, com a chave da tentativa preservada. Não houve alteração de domínio, store, persistência, CSS, dependências ou versão dos dados.
+- Foram preservados conta física ativa, turno único e do mesmo dia, cronologia, saldo mais recente, troco, idempotência do pagamento e independência de fiscal, estoque e legado. Rejeitar uma segunda abertura não é a mesma garantia que repetir um pagamento com sua chave de idempotência. Turno anterior é informado e bloqueado; não é fechado automaticamente.
+- Arquitetura: o estado muda em memória antes da escrita de `localStorage`, que ocorre em efeito. Há aviso global de falha de armazenamento; retorno do comando não prova gravação durável. Testar recuperação/recarga e não transformar o plano em promessa de persistência de servidor.
+- A sugestão arquitetural de compor acordo e pagamento em uma única transição local pertence à evolução futura de receber na venda. Encadear comandos separados pode deixar gravação parcial nessa futura composição; não é um bug reproduzido da jornada atual nem requisito para abrir turno contextualmente.
+
+**Exclusões:** receber diretamente na venda, pagamento conjunto ou misto, novos meios, fechamento de turno dentro do recebimento, fundo de caixa, migração, estorno, backend, autenticação e integrações. A verificação utiliza dados fictícios; não houve validação com usuários reais.
+
+### Execução dos testes antes e depois do código
+
+O QA executou os novos testes antes de liberar a implementação. O revisor conferiu as expectativas e os contratos por leitura, sem executar o runner nem aprovar em nome do QA.
+
+| Etapa | Comando e resultado |
+| --- | --- |
+| Antes do código | `npm.cmd exec -- playwright test tests/finance-cash-opening.spec.ts --reporter=line,json`: 15 casos, dez falhas esperadas e cinco aprovados, 43,943 segundos. Nove falhas eram a ação contextual ausente; uma era a falta de orientação para turno anterior. Sem ignorados ou instáveis. |
+| Primeira implementação | Mesmo comando: 13 aprovados e duas falhas. Uma comparação usava a fixture anterior à hidratação; a outra revelou saída do foco por Tab na última ação em 390 × 844. |
+| Correção do ensaio ABR-01 | A restauração preexistente acrescenta `documents.mode` em `src/lib/demo-persistence.ts:129`. O QA passou a capturar o estado salvo após hidratar, antes de qualquer ação de abertura. Todas as igualdades integrais de contas, acordos, parcelas, OS, vendas, produtos e documentos foram mantidas. Coordenador e revisor conferiram independentemente a justificativa. Reexecução isolada: um caso aprovado em 5,1 segundos. |
+| Correção de foco | Desenvolvedor corrigiu o ciclo de Tab/Shift+Tab sem mudar a expectativa ABR-06 ou apenas deslocar o foco inicial. Os 15 casos passaram em 16,8 segundos. |
+| Regressão final | QA executou `npm.cmd test -- --reporter=line,json`: três checks estáticos e 69 testes Playwright aprovados, incluindo os 15 novos; Playwright em 47,004 segundos, sem falhas, ignorados ou instáveis. |
+| Tipos | Desenvolvedor executou `npm.cmd run typecheck` após a implementação e novamente após a correção de foco, ambos com saída 0. |
+| Build | Coordenador executou `npm.cmd run build` após o QA encerrar seus servidores: compilação, TypeScript e 17 páginas estáticas aprovados, com 15 aliases adicionados pelo postbuild existente. |
+
+O arquivo original dos testes tinha SHA256 `d271f022be18215fb2b625a2728fef14d80f3677cd911d8dfbe7978aa5bcab8f`; após o único ajuste justificado do estado inicial de ABR-01, `447b793861282073e3b879a3cd94261ee8ee35b1efec2f5b22bd5f5dd746e288`. Não foram removidas expectativas para obter aprovação. Os relatórios anteriores foram preservados pelo QA em arquivos temporários da sessão; esta descrição registra os resultados sem depender da presença desses arquivos em outro clone.
+
+O QA também realizou uma inspeção independente em Chrome, fora do spec: Tab e Shift+Tab envolveram corretamente as bordas nas etapas de abertura em computador/celular e no recebimento em celular. Enter criou um turno e zero pagamentos, alocações ou movimentos; o diálogo permaneceu aberto. Em 390 × 844 não houve vazamento horizontal. Nessa inspeção não foram observados erros de página, console ou respostas HTTP com erro. Os servidores iniciados pelo QA foram encerrados antes do build.
+
+Evidências da abertura, com dados fictícios: [computador — 1440 × 1000](evidencias/financeiro-abertura-caixa.png) e [celular — 390 × 844](evidencias/financeiro-abertura-caixa-mobile.png).
+
+**Parecer final do QA: Aprovado no escopo verificado da simulação local.** **Revisor: Aprovado no escopo de revisão estática**, sem bloqueio aberto no diff final; não executou os testes. O coordenador integrou documentação e build. As capturas e jornadas novas foram verificadas com o servidor de desenvolvimento; o build gera o artefato estático, sem nova publicação ou declaração de integração real. Permanecem os limites de persistência local, ausência de identidade real e de verificação entre abas/servidor já descritos neste documento.

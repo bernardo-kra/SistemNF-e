@@ -141,12 +141,16 @@ export function Modal({
   description,
   children,
   onClose,
+  onCancel,
+  onKeyDown,
   wide = false,
 }: {
   title: string;
   description?: string;
   children: React.ReactNode;
   onClose: () => void;
+  onCancel?: React.ReactEventHandler<HTMLDialogElement>;
+  onKeyDown?: React.KeyboardEventHandler<HTMLDialogElement>;
   wide?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -161,7 +165,8 @@ export function Modal({
     <dialog
       ref={ref}
       className={`modal ${wide ? "modal-wide" : ""}`}
-      onCancel={onClose}
+      onCancel={onCancel || onClose}
+      onKeyDown={onKeyDown}
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}

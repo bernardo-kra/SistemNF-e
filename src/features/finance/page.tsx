@@ -886,6 +886,7 @@ export function FinancePage() {
         <PaymentModal
           key={paymentItem.id}
           item={paymentItem}
+          asOf={asOf}
           onClose={() => setReceiving(null)}
           onReceived={(id) => {
             setReceiving(null);
@@ -1161,14 +1162,16 @@ function AgreementModal({
 
 function PaymentModal({
   item,
+  asOf,
   onClose,
   onReceived,
 }: {
   item: Installment;
+  asOf: string;
   onClose: () => void;
   onReceived: (id: string) => void;
 }) {
-  const { state, registerInstallmentPayment } = useDemo();
+  const { state, registerInstallmentPayment, openCashShift } = useDemo();
   const agreement = state.finance.agreements.find(
     (a) => a.id === item.agreementId,
   )!;
@@ -1183,6 +1186,14 @@ function PaymentModal({
   const [tendered, setTendered] = useState(amountInput(balance));
   const [confirmed, setConfirmed] = useState(false);
   const [error, setError] = useState("");
+  const [opening, setOpening] = useState(false);
+  const [operator, setOperator] = useState("");
+  const [openingError, setOpeningError] = useState("");
+  const operatorRef = useRef<HTMLInputElement>(null);
+  const openingActionRef = useRef<HTMLButtonElement>(null);
+  const paymentActionRef = useRef<HTMLButtonElement>(null);
+  const amountRef = useRef<HTMLInputElement>(null);
+  const returnFocus = useRef<"opening" | "payment" | null>(null);
   const key = useRef<string | null>(null);
   const shift = state.finance.shifts.find(
     (s) => s.accountId === accountId && s.status === "open",
@@ -1190,6 +1201,24 @@ function PaymentModal({
   const accounts = state.finance.accounts.filter(
     (a) => a.active && a.type === (method === "cash" ? "cash" : "bank"),
   );
+  const account = accounts.find((a) => a.id === accountId);
+  const payableShift = shift?.openedOn === asOf ? shift : undefined;
+  useEffect(() => {
+    if (opening) {
+      operatorRef.current?.focus();
+    } else if (returnFocus.current) {
+      const action = returnFocus.current === "opening"
+        ? openingActionRef.current
+        : paymentActionRef.current;
+      if (action && !action.disabled) action.focus();
+      else amountRef.current?.focus();
+      returnFocus.current = null;
+    }
+  }, [opening]);
+  const cancelOpening = () => {
+    returnFocus.current = "opening";
+    setOpening(false);
+  };
   let previewChange: number | null = null;
   try {
     if (method === "cash")
@@ -1199,11 +1228,92 @@ function PaymentModal({
   }
   return (
     <Modal
-      title="Receber parcela"
+      title={opening ? "Abrir caixa" : "Receber parcela"}
       description={`${agreement.sourceLabel} · ${agreement.customerName} · ${installmentLabel(item)}`}
-      onClose={onClose}
+      onClose={opening ? cancelOpening : onClose}
+      onCancel={opening ? (event) => {
+        event.preventDefault();
+        cancelOpening();
+      } : undefined}
+      onKeyDown={(event) => {
+        if (
+          event.key !== "Tab" || event.defaultPrevented ||
+          event.altKey || event.ctrlKey || event.metaKey
+        ) return;
+        const dialog = event.currentTarget;
+        const controls = Array.from(dialog.querySelectorAll<HTMLElement>(
+          "button, a[href], input, select, textarea, [tabindex]",
+        )).filter((element) =>
+          element.tabIndex >= 0 && !element.matches(":disabled") &&
+          !element.closest("[inert]") && element.getClientRects().length > 0,
+        );
+        const first = controls[0];
+        const last = controls[controls.length - 1];
+        const boundary = event.shiftKey ? first : last;
+        // Keep both Tab directions in this payment journey at the boundaries.
+        if (first && last && (
+          document.activeElement === boundary || document.activeElement === dialog
+        )) {
+          event.preventDefault();
+          (event.shiftKey ? last : first).focus();
+        }
+      }}
     >
+      {opening ? (
+        <form
+          key="opening"
+          onSubmit={(e) => {
+            e.preventDefault();
+            try {
+              if (method !== "cash" || !account)
+                throw new Error("Selecione uma conta ativa de caixa físico.");
+              openCashShift({ accountId: account.id, operator });
+              returnFocus.current = "payment";
+              setOpening(false);
+              setError("");
+            } catch (err) {
+              setOpeningError(errorText(err));
+            }
+          }}
+        >
+          <div className="finance-preview">
+            <p><strong>{account?.name || "Conta de caixa indisponível"}</strong></p>
+            <p className="finance-note">
+              Abrir o caixa cria somente o turno, sem receber esta parcela.
+              Depois, confira os dados e confirme o recebimento separadamente.
+            </p>
+          </div>
+          <Field label="Operador do caixa">
+            <input
+              ref={operatorRef}
+              value={operator}
+              onChange={(e) => setOperator(e.target.value)}
+              maxLength={100}
+              required
+            />
+          </Field>
+          <p className="finance-note">
+            O turno começa com o saldo já registrado nesta conta fictícia.
+            A abertura não registra receita nem adiciona fundo de caixa.
+            O operador informado não altera o responsável pela conferência.
+          </p>
+          <FormError message={openingError} />
+          <div className="form-actions">
+            <button
+              className="button button-secondary"
+              type="button"
+              onClick={cancelOpening}
+            >
+              Cancelar abertura
+            </button>
+            <button className="button button-primary" type="submit">
+              Confirmar abertura
+            </button>
+          </div>
+        </form>
+      ) : (
       <form
+        key="payment"
         onSubmit={(e) => {
           e.preventDefault();
           try {
@@ -1213,7 +1323,7 @@ function PaymentModal({
               amount: parseMoney(amount),
               method,
               accountId,
-              shiftId: method === "cash" ? shift?.id : undefined,
+              shiftId: method === "cash" ? payableShift?.id : undefined,
               confirmedBy: person,
               reference: method === "cash" ? "" : reference,
               tendered: method === "cash" ? parseMoney(tendered) : undefined,
@@ -1233,6 +1343,7 @@ function PaymentModal({
         <div className="form-grid">
           <Field label="Valor a aplicar (R$)">
             <input
+              ref={amountRef}
               inputMode="decimal"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
@@ -1320,10 +1431,28 @@ function PaymentModal({
                 </strong>
               </p>
               <p className="finance-note">
-                {shift
-                  ? `Turno de ${shift.operator}, aberto em ${shift.openedOn}.`
-                  : "Não há turno aberto nesta conta. Feche esta janela e abra o caixa na aba Caixa e contas."}
+                {!account
+                  ? "Selecione uma conta ativa de caixa físico."
+                  : shift && !payableShift
+                    ? `O turno de ${shift.operator}, aberto em ${shift.openedOn}, é de outro dia. Trate o turno anterior na aba Caixa e contas antes de receber em dinheiro.`
+                    : shift
+                      ? `Turno de ${shift.operator}, aberto em ${shift.openedOn}.`
+                      : "Não há turno aberto nesta conta. Abra o caixa para continuar com estes dados."}
               </p>
+              {account && !shift && (
+                <button
+                  ref={openingActionRef}
+                  className="button button-secondary"
+                  type="button"
+                  onClick={() => {
+                    setOperator(person);
+                    setOpeningError("");
+                    setOpening(true);
+                  }}
+                >
+                  Abrir caixa nesta conta
+                </button>
+              )}
             </div>
             <p className="finance-note">
               Somente o valor aplicado à parcela entra no saldo. O troco
@@ -1355,14 +1484,16 @@ function PaymentModal({
             Voltar
           </button>
           <button
+            ref={paymentActionRef}
             className="button button-primary"
             type="submit"
-            disabled={method === "cash" && !shift}
+            disabled={method === "cash" && (!account || !payableShift)}
           >
             Confirmar recebimento
           </button>
         </div>
       </form>
+      )}
     </Modal>
   );
 }

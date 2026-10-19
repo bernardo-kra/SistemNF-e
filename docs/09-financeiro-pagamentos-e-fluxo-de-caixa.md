@@ -183,7 +183,7 @@ Permissões: atendente recebe nos meios autorizados e no seu turno; financeiro c
 
 O total acumulado em `OS.received` não contém conta, datas confiáveis, referências, taxas nem alocações das parcelas. **Não migrar esse total como entrada de caixa de hoje, Pix ou dinheiro inventado.** Preservá-lo como valor histórico informado/legado; usar data de corte e saldos iniciais confirmados para iniciar o caixa. Só reconstruir lançamentos quando existirem informações verificáveis. Novos recebimentos devem ser registros próprios, e o resumo da OS deve passar a ser derivado deles e dos ajustes legados conciliados.
 
-Recebíveis de vendas também precisam entrar no módulo; hoje a tela considera apenas OS. Exportação, restauração, isolamento, duplicidade e saldos precisam de testes antes de usar dados reais. Estados fiscais e movimento de estoque continuam independentes.
+Recebíveis de vendas e OS aprovadas já são contemplados no primeiro recorte descrito no documento 11 do repositório da aplicação; a tela anterior considerava apenas OS. Exportação, restauração, duplicidade e saldos exigem verificações contínuas. Isolamento real de empresas permanece pendente de backend e identidade; os testes do protótipo não o comprovam. Estados fiscais e movimento de estoque continuam independentes.
 
 ## Telas e design funcional
 

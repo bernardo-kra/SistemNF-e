@@ -13,6 +13,12 @@ import type {
 import { TODAY, sumOrder } from "./domain";
 import { restoreDemoState } from "./demo-persistence";
 import {
+  instrumentOperation,
+  isDiagnosticOperation,
+  type DiagnosticOperation,
+} from "./diagnostics/engine";
+import { getBrowserRecorder } from "./diagnostics/store";
+import {
   prepareAgreement,
   recordPayment,
   sourceAgreement,
@@ -45,6 +51,20 @@ import type {
 } from "./fiscal/types";
 
 const KEY = "sistem:prototype:v1";
+const recordDiagnostic = (operation: DiagnosticOperation) => {
+  if (typeof window === "undefined") return null;
+  try {
+    return getBrowserRecorder().record({
+      operation,
+      route: window.location.pathname,
+    });
+  } catch {
+    // A diagnostic failure must never replace the operational result.
+    return null;
+  }
+};
+const withSupportCode = (message: string, id?: string) =>
+  id ? `${message} Código da ocorrência para suporte: ${id}` : message;
 type Context = {
   state: DemoState;
   hydrated: boolean;
@@ -78,25 +98,33 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
   const [hydrated, setHydrated] = useState(false);
   const [storageAvailable, setStorageAvailable] = useState(true);
   const [message, setMessage] = useState("");
+  const initialized = useRef(false);
   const recoveryBlocked = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(KEY);
-      if (raw) {
-        const value: unknown = JSON.parse(raw);
-        const restored = restoreDemoState(value);
-        current.current = restored;
-        setState(restored);
+    if (!initialized.current) {
+      initialized.current = true;
+      try {
+        const raw = window.localStorage.getItem(KEY);
+        if (raw) {
+          const value: unknown = JSON.parse(raw);
+          const restored = restoreDemoState(value);
+          current.current = restored;
+          setState(restored);
+        }
+      } catch {
+        recoveryBlocked.current = true;
+        setStorageAvailable(false);
+        const incident = recordDiagnostic("storageRead");
+        setMessage(
+          withSupportCode(
+            "Os dados locais não puderam ser recuperados e foram preservados. A gravação está bloqueada; exporte o arquivo original antes de restaurar os exemplos nas configurações.",
+            incident?.id,
+          ),
+        );
       }
-    } catch {
-      recoveryBlocked.current = true;
-      setStorageAvailable(false);
-      setMessage(
-        "Os dados locais não puderam ser recuperados e foram preservados. A gravação está bloqueada; exporte o arquivo original antes de restaurar os exemplos nas configurações.",
-      );
+      setHydrated(true);
     }
-    setHydrated(true);
     return () => {
       if (timer.current) clearTimeout(timer.current);
     };
@@ -108,6 +136,13 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
       setStorageAvailable(true);
     } catch {
       setStorageAvailable(false);
+      const incident = recordDiagnostic("storageWrite");
+      setMessage(
+        withSupportCode(
+          "A gravação local está indisponível. As alterações em memória ainda não foram salvas neste navegador.",
+          incident?.id,
+        ),
+      );
     }
   }, [state, hydrated]);
   const notify = (text: string) => {
@@ -115,6 +150,27 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => setMessage(""), 6500);
   };
+  useEffect(() => {
+    const report = (operation: "runtimeError" | "unhandledRejection") => {
+      const incident = recordDiagnostic(operation);
+      if (incident) {
+        notify(
+          withSupportCode(
+            "Uma ocorrência da aplicação foi registrada neste navegador.",
+            incident.id,
+          ),
+        );
+      }
+    };
+    const onError = () => report("runtimeError");
+    const onRejection = () => report("unhandledRejection");
+    window.addEventListener("error", onError);
+    window.addEventListener("unhandledrejection", onRejection);
+    return () => {
+      window.removeEventListener("error", onError);
+      window.removeEventListener("unhandledrejection", onRejection);
+    };
+  }, []);
   const commit = (update: (state: DemoState) => DemoState) => {
     if (recoveryBlocked.current)
       throw new Error(
@@ -494,8 +550,27 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
       notify("Dados de demonstração restaurados.");
     },
   };
+  const diagnosed = { ...value };
+  for (const [operation, command] of Object.entries(value)) {
+    if (!isDiagnosticOperation(operation) || typeof command !== "function")
+      continue;
+    (diagnosed as unknown as Record<string, unknown>)[operation] = (
+      ...args: unknown[]
+    ) =>
+      instrumentOperation(
+        operation,
+        () => Reflect.apply(command, value, args),
+        (failedOperation) => {
+          const incident = recordDiagnostic(failedOperation);
+          if (incident)
+            notify(
+              withSupportCode("A operação não foi concluída.", incident.id),
+            );
+        },
+      );
+  }
   return (
-    <Store.Provider value={value}>
+    <Store.Provider value={diagnosed}>
       {children}
       <div
         className={`toast ${message ? "visible" : ""}`}
