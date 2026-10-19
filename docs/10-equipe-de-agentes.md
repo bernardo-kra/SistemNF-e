@@ -202,6 +202,7 @@ São instruções ao coordenador, não comandos de terminal. A execução depend
 | Simplificação do balcão | Abertura contextual de caixa implementada e verificada. | Recorte ABR no documento 11: testes antes do código, 15 novos casos aprovados, regressão completa, revisão independente e build. Receber diretamente na venda e várias parcelas juntas permanecem pendentes. |
 | Diagnóstico e relatórios | Diagnóstico local e quatro relatórios implementados e verificados pela equipe. | [Escopo, testes e limites](12-logs-e-relatorios.md): código de ocorrência, exportação JSON controlada e relatórios de recebimentos, parcelas, vendas e OS com CSV. Coleta centralizada por assinante depende do backend e da identidade de empresa. |
 | Backend, acesso por empresa e integrações | Pendentes. | Confirmar contratos, identidade, autorização, transações e isolamento antes de operação real. |
+| Preparação do backend | Checkpoint parcial com contratos, 30 cenários prévios e ferramentas iniciais. | [Estado e limites](13-backend-primeiro-recorte.md): API ainda ausente; suíte falha na importação antes de executar os cenários. Não é aprovação de autenticação/isolamento. |
 
 Atualize a linha pertinente ao concluir uma tarefa; mantenha resultados detalhados no relatório responsável. Criar o guia não inicia automaticamente a próxima implementação.
 

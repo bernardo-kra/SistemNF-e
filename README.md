@@ -59,6 +59,10 @@ A referência operacional dos exemplos permanece em 16/10/2026. O financeiro usa
 
 Em **Diagnóstico**, copie o código mostrado na notificação de falha, filtre a ocorrência e use **Exportar diagnóstico** para obter o JSON de suporte. A chave `sistem:diagnostics:v1` é separada dos dados operacionais; se a gravação falhar, o histórico fica somente em memória. Não há envio automático, painel central de suporte ou identidade autenticada de empresa: o identificador é desta instalação local. Em **Relatórios**, escolha o tipo e o período e use **Exportar CSV**; somente Parcelas permite calcular saldo numa data-base histórica. OS e vendas mostram a situação atual. Decisões, testes e limites estão em [Diagnóstico e relatórios](docs/12-logs-e-relatorios.md).
 
+## Preparação do backend
+
+O [primeiro recorte do backend](docs/13-backend-primeiro-recorte.md) está em preparação: contratos, 30 cenários prévios, dependências e ferramentas iniciais de PostgreSQL local em `server/`. A API, autenticação, migrações e isolamento por empresa ainda não foram implementados. A suíte do backend atualmente falha ao importar os módulos ausentes; seus scripts de execução ainda não oferecem um servidor utilizável. Esse checkpoint preserva o trabalho antes da implementação e mantém o protótipo independente.
+
 ## Organização
 
 A [equipe de agentes](docs/10-equipe-de-agentes.md) define sete papéis: orquestrador, analista, arquiteto, desenvolvedor, QA e Segurança, revisor e especialista sob demanda. O agente principal coordena e seleciona os papéis necessários, sem iniciar todos por rotina. O guia inclui contratos de delegação/entrega, limites de autonomia e critérios para reduzir digitação repetida, trocas de tela e lançamentos manuais evitáveis. Os perfis do Codex ficam em `.codex/agents` e herdam as configurações da sessão. Alterar essas instruções não implementa as melhorias propostas para o balcão.
