@@ -5,11 +5,11 @@
   "type": "module",
   "engines": { "node": ">=22.23.0 <23 || >=24" },
   "scripts": {
-    "dev": "node --env-file-if-exists=.env --import tsx --watch src/index.ts",
-    "start": "node --env-file-if-exists=.env dist/index.js",
+    "dev": "node --env-file-if-exists=.local/development/api.env --env-file-if-exists=.env --import tsx --watch src/index.ts",
+    "start": "node --env-file-if-exists=.local/development/api.env --env-file-if-exists=.env dist/index.js",
     "typecheck": "tsc --noEmit",
     "build": "tsc -p tsconfig.build.json",
-    "test": "node --import tsx --test --test-concurrency=1 test/config.test.ts test/backend.test.ts",
+    "test": "node --import tsx --test --test-concurrency=1 --test-reporter=./test/redacted-reporter.mjs test/config.test.ts test/backend.test.ts test/bootstrap.test.ts test/infrastructure.test.ts test/setup-local.test.ts test/accounts.test.ts test/operations.test.ts",
     "db:local": "node --import tsx scripts/local-postgres.ts",
     "setup:local": "node --import tsx scripts/setup-local.ts"
   },

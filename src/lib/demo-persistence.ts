@@ -1,6 +1,8 @@
 import type { DemoState } from "./domain";
 import { defaultFinance } from "./finance/engine";
 import { restoreFinanceState } from "./finance/persistence";
+import { restoreTechnicians } from "./technicians";
+import { restorePurchasing } from "./purchases/engine";
 import {
   defaultCompanyFiscal,
   defaultServiceFiscal,
@@ -18,6 +20,24 @@ const strings = (value: unknown, fields: string[]) =>
   record(value) && fields.every((key) => typeof value[key] === "string");
 const address = (value: unknown): value is FiscalAddress =>
   strings(value, Object.keys(emptyAddress));
+const productAttributes = (value: unknown): boolean => {
+  if (value === undefined) return true;
+  if (!record(value)) return false;
+  for (const key of ["compatibleModels", "connectors"]) {
+    if (value[key] !== undefined && (!Array.isArray(value[key]) ||
+        !(value[key] as unknown[]).every((entry) => typeof entry === "string" && entry.trim()))) return false;
+  }
+  for (const key of ["material", "finish", "color", "border"]) {
+    if (value[key] !== undefined && (typeof value[key] !== "string" || !value[key].trim())) return false;
+  }
+  for (const key of ["magsafe", "lensProtection"]) {
+    if (value[key] !== undefined && typeof value[key] !== "boolean") return false;
+  }
+  for (const key of ["lengthMeters", "powerWatts"]) {
+    if (value[key] !== undefined && (typeof value[key] !== "number" || !Number.isFinite(value[key]) || value[key] <= 0)) return false;
+  }
+  return true;
+};
 
 export function restoreDemoState(value: unknown): DemoState {
   if (!record(value) || ![1, 2, 3].includes(Number(value.version)))
@@ -42,6 +62,9 @@ export function restoreDemoState(value: unknown): DemoState {
     !s.products.every(
       (p) =>
         strings(p, ["id", "name", "sku", "category", "unit", "ncm"]) &&
+        (p.pricePending === undefined || typeof p.pricePending === "boolean") &&
+        (p.gtin === undefined || typeof p.gtin === "string") &&
+        productAttributes(p.attributes) &&
         [p.stock, p.reserved, p.minimum, p.price, p.cost].every(
           (n) => Number.isSafeInteger(n) && n >= 0,
         ),
@@ -120,6 +143,8 @@ export function restoreDemoState(value: unknown): DemoState {
   return structuredClone({
     ...s,
     version: 3,
+    technicians: restoreTechnicians(s.technicians, s.orders),
+    ...(s.purchasing !== undefined ? { purchasing: restorePurchasing(s.purchasing, s.products) } : {}),
     finance:
       Number(value.version) === 3
         ? restoreFinanceState(value.finance, s)

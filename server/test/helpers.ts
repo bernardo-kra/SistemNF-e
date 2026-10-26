@@ -14,59 +14,71 @@ export const PASSWORD = "QA-password-2026!";
 
 export async function createFixture() {
   const cluster = await createTestCluster();
-  const control = await cluster.createDatabase("control");
-  const a = await cluster.createDatabase("tenant_a");
-  const b = await cluster.createDatabase("tenant_b");
-  await migrateControl(control.migrationPool);
-  await migrateTenant(a.migrationPool);
-  await migrateTenant(b.migrationPool);
-  await control.grantRuntime();
-  await a.grantRuntime();
-  await b.grantRuntime();
-  await control.migrationPool.query(
-    "INSERT INTO tenants (id,name,database_key,active) VALUES ($1,$2,$3,true),($4,$5,$6,true)",
-    [TENANT_A, "Loja A de teste", "a", TENANT_B, "Loja B de teste", "b"],
-  );
-  const config = {
-    nodeEnv: "test" as "development" | "test" | "production",
-    host: "127.0.0.1",
-    port: 4000,
-    baseUrl: "http://127.0.0.1:4000",
-    frontendOrigin: ORIGIN,
-    authSecret: "qa-exclusive-" + randomUUID() + randomUUID(),
-    controlDatabaseUrl: control.runtimeUrl,
-    tenantDatabaseUrls: { a: a.runtimeUrl, b: b.runtimeUrl },
-  };
-  const provisioning = createAuth(control.migrationPool, config, true);
-  async function user(role = "owner", both = false) {
-    const email = `qa-${randomUUID()}@example.test`;
-    const result = await provisioning.api.signUpEmail({
-      body: { name: "Pessoa de teste", email, password: PASSWORD },
-    });
+  try {
+    const control = await cluster.createDatabase("control");
+    const a = await cluster.createDatabase("tenant_a");
+    const b = await cluster.createDatabase("tenant_b");
+    await migrateControl(control.migrationPool);
+    await migrateTenant(a.migrationPool);
+    await migrateTenant(b.migrationPool);
+    await control.grantRuntime();
+    await a.grantRuntime();
+    await b.grantRuntime();
     await control.migrationPool.query(
-      "INSERT INTO memberships (user_id,tenant_id,role,active) VALUES ($1,$2,$3,true)",
-      [result.user.id, TENANT_A, role],
+      "INSERT INTO tenants (id,name,database_key,active) VALUES ($1,$2,$3,true),($4,$5,$6,true)",
+      [TENANT_A, "Loja A de teste", "a", TENANT_B, "Loja B de teste", "b"],
     );
-    if (both) await control.migrationPool.query(
-      "INSERT INTO memberships (user_id,tenant_id,role,active) VALUES ($1,$2,$3,true)",
-      [result.user.id, TENANT_B, role],
-    );
-    return { id: result.user.id, email, password: PASSWORD };
-  }
-  async function app(overrides: Partial<typeof config> = {}) {
-    const controlPool = new Pool({ connectionString: overrides.controlDatabaseUrl ?? config.controlDatabaseUrl, max: 2, connectionTimeoutMillis: 800 });
-    const logs: string[] = [];
-    const stream = new Writable({ write(chunk, _encoding, callback) { logs.push(chunk.toString()); callback(); } });
-    const instance = await buildApp({ config: { ...config, ...overrides }, controlPool, logger: { level: "info", stream } });
-    return {
-      instance, controlPool, logs,
-      async close() { await instance.close(); await controlPool.end(); },
+    const config = {
+      nodeEnv: "test" as "development" | "test" | "production",
+      host: "127.0.0.1",
+      port: 4000,
+      baseUrl: "http://127.0.0.1:4000",
+      frontendOrigin: ORIGIN,
+      authSecret: "qa-exclusive-" + randomUUID() + randomUUID(),
+      controlDatabaseUrl: control.runtimeUrl,
+      tenantDatabaseUrls: { a: a.runtimeUrl, b: b.runtimeUrl },
     };
+    const provisioning = createAuth(control.migrationPool, config, true);
+    async function user(role = "owner", both = false) {
+      const email = `qa-${randomUUID()}@example.test`;
+      const result = await provisioning.api.signUpEmail({
+        body: { name: "Pessoa de teste", email, password: PASSWORD },
+      });
+      await control.migrationPool.query(
+        "INSERT INTO memberships (user_id,tenant_id,role,active) VALUES ($1,$2,$3,true)",
+        [result.user.id, TENANT_A, role],
+      );
+      if (both) await control.migrationPool.query(
+        "INSERT INTO memberships (user_id,tenant_id,role,active) VALUES ($1,$2,$3,true)",
+        [result.user.id, TENANT_B, role],
+      );
+      return { id: result.user.id, email, password: PASSWORD };
+    }
+    async function app(overrides: Partial<typeof config> = {}) {
+      const controlPool = new Pool({ connectionString: overrides.controlDatabaseUrl ?? config.controlDatabaseUrl, max: 2, connectionTimeoutMillis: 800 });
+      const logs: string[] = [];
+      const stream = new Writable({ write(chunk, _encoding, callback) { logs.push(chunk.toString()); callback(); } });
+      try {
+        const instance = await buildApp({ config: { ...config, ...overrides }, controlPool, logger: { level: "info", stream } });
+        return {
+          instance, controlPool, logs,
+          async close() { await instance.close(); await controlPool.end(); },
+        };
+      } catch (error) {
+        try { await controlPool.end(); }
+        catch { console.error("Falha ao fechar o pool de teste após erro na preparação da API."); }
+        throw error;
+      }
+    }
+    return {
+      cluster, control, a, b, config, user, app,
+      async close() { await cluster.stop(); },
+    };
+  } catch (error) {
+    try { await cluster.stop(); }
+    catch { console.error("Falha ao encerrar o cluster isolado após erro na preparação da fixture."); }
+    throw error;
   }
-  return {
-    cluster, control, a, b, config, user, app,
-    async close() { await cluster.stop(); },
-  };
 }
 
 export type Fixture = Awaited<ReturnType<typeof createFixture>>;

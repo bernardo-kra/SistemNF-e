@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useId, useRef } from "react";
 import { Search, X, PackageOpen, ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 import type { Tone } from "@/lib/domain";
@@ -154,6 +154,7 @@ export function Modal({
   wide?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
   useEffect(() => {
     const dialog = ref.current;
     dialog?.showModal();
@@ -170,12 +171,12 @@ export function Modal({
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
-      aria-labelledby="modal-title"
+      aria-labelledby={titleId}
     >
       <div className="modal-inner">
         <div className="modal-heading">
           <div>
-            <h2 id="modal-title">{title}</h2>
+            <h2 id={titleId}>{title}</h2>
             {description && <p>{description}</p>}
           </div>
           <button
@@ -202,9 +203,11 @@ export function FormError({ message }: { message: string }) {
 export function FormActions({
   onClose,
   label = "Salvar",
+  disabled = false,
 }: {
   onClose: () => void;
   label?: string;
+  disabled?: boolean;
 }) {
   return (
     <div className="form-actions">
@@ -215,7 +218,7 @@ export function FormActions({
       >
         Cancelar
       </button>
-      <button className="button button-primary" type="submit">
+      <button className="button button-primary" type="submit" disabled={disabled}>
         {label}
       </button>
     </div>

@@ -8,7 +8,7 @@ Os perfis são configurações locais de agentes do Codex para desenvolver o pro
 
 O Sistem é um SaaS para lojas de eletrônicos e manutenção de TI: vendas, OS, clientes, produtos, estoque, financeiro e fiscal. A direção é uma base de código, assinatura mensal e banco operacional separado por empresa. Parceiras são empresas independentes; cadastrá-las não concede acesso a outro tenant.
 
-A implementação atual é um protótipo Next.js/React/TypeScript/CSS, com exportação estática e armazenamento no navegador. Backend Node.js e PostgreSQL são direção arquitetural; API, banco, autenticação, permissões e isolamento reais ainda precisam ser implementados. Confirme o estado no [README](../README.md), nos manifestos e no código antes de repetir esta descrição.
+A interface atual é um protótipo Next.js/React/TypeScript/CSS, com exportação estática e armazenamento no navegador. A primeira fundação Node.js/PostgreSQL implementa API, autenticação, vínculos e isolamento por empresa em desenvolvimento local, ainda independente das telas. Painel de funcionários, permissões configuráveis e integração operacional continuam pendentes. Confirme o estado no [README](../README.md), nos manifestos e no código antes de repetir esta descrição.
 
 O [primeiro recorte financeiro](11-financeiro-primeiro-recorte.md) cobre acordos, parcelas, recebimentos manuais, recibos e turno mínimo. O [financeiro ampliado](09-financeiro-pagamentos-e-fluxo-de-caixa.md) continua como planejamento. Fiscal simulado não comprova emissão ou conformidade. Preserve operação, pagamento, liquidação, caixa, fiscal, estoque e custódia como dimensões próprias. Legado de OS não gera movimento de caixa com conta ou data inventadas.
 
@@ -201,8 +201,11 @@ São instruções ao coordenador, não comandos de terminal. A execução depend
 | Primeiro recorte financeiro | Implementado e verificado nos cenários registrados. | [Decisões e evidências](11-financeiro-primeiro-recorte.md); não repetir o parecer antigo como se fosse nova execução. |
 | Simplificação do balcão | Abertura contextual de caixa implementada e verificada. | Recorte ABR no documento 11: testes antes do código, 15 novos casos aprovados, regressão completa, revisão independente e build. Receber diretamente na venda e várias parcelas juntas permanecem pendentes. |
 | Diagnóstico e relatórios | Diagnóstico local e quatro relatórios implementados e verificados pela equipe. | [Escopo, testes e limites](12-logs-e-relatorios.md): código de ocorrência, exportação JSON controlada e relatórios de recebimentos, parcelas, vendas e OS com CSV. Coleta centralizada por assinante depende do backend e da identidade de empresa. |
-| Backend, acesso por empresa e integrações | Pendentes. | Confirmar contratos, identidade, autorização, transações e isolamento antes de operação real. |
-| Preparação do backend | Checkpoint parcial com contratos, 30 cenários prévios e ferramentas iniciais. | [Estado e limites](13-backend-primeiro-recorte.md): API ainda ausente; suíte falha na importação antes de executar os cenários. Não é aprovação de autenticação/isolamento. |
+| Fundação do backend | API, identidade, bancos por empresa, clientes e auditoria implementados e verificados localmente. | [Estado, testes e limites](13-backend-primeiro-recorte.md). O checkpoint de 19/10 era somente preparação. Telas operacionais demonstrativas ainda independentes. |
+| Controle de funcionários, auditoria operacional e filtros | Painel real ACC entregue para equipe e direitos de clientes; demais módulos operacionais pendentes. | [Execução, 55 casos backend em rodadas, 11 UI, smoke real e limites](15-auditoria-acessos-e-filtros.md). Usuário escolheu login real e dados compartilhados; abas demonstrativas não são protegidas por esse painel. |
+| Cadastros no contexto | Implementados em OS, venda e catálogo, com técnico operacional persistente e entrada explícita quando falta estoque. | [Decisões, testes e evidências](14-cadastros-no-contexto.md): testes antes do código, 23 novos cenários, regressão de 119 casos, tipos/build e QA independente aprovados. |
+| Preços em lote e pendência no contexto da venda | Implementados e verificados em 24/10/2026 no protótipo local. | [Cadastro assistido da workspace](../../docs/07-cadastro-assistido.md): critérios LPR, 21 novos cenários, regressão de 191 casos, três checks estáticos, tipos/build e QA independente aprovados. Demais lacunas estão no [backlog atualizado](../../docs/05-backlog-e-qa.md). |
+| Carrinho com vários produtos | Implementado e verificado em 24/10/2026, com cliente global e cadastros por linha. | [Fluxo da venda na workspace](../../docs/02-fluxos-e-requisitos.md): critérios CAR, 25 novos cenários, regressão de 216 casos, tipos/build e QA independente aprovados; confirmação/entrega duráveis e repetíveis sem duplicação. |
 
 Atualize a linha pertinente ao concluir uma tarefa; mantenha resultados detalhados no relatório responsável. Criar o guia não inicia automaticamente a próxima implementação.
 
@@ -278,3 +281,93 @@ O usuário esclareceu que os problemas devem ser relacionados à empresa assinan
 QA acumulou a revisão independente do produto. A conferência de precisão encontrou uma diferença de um centavo na apresentação de um valor alto: um novo teste reproduziu a falha antes da correção e depois confirmou linha, total e CSV exatos. Ajustes demonstrados de preparação dos ensaios preservaram as expectativas e estão justificados no documento da tarefa.
 
 **Verificação funcional:** 27 novos casos aprovados; regressão única com três checks estáticos e 96 testes Playwright aprovados, sem falhas ou casos ignorados. Capturas, tipos, build, contratos, limitações e conclusão são registrados em [Diagnóstico e relatórios](12-logs-e-relatorios.md). Não houve publicação ou integração externa; o monitoramento central por empresa continua pendente.
+
+## Análise de nomes e vínculos de produtos — 23/10/2026
+
+**Status: concluído no escopo de análise; implementação pendente.** O coordenador inspecionou a importação atual e extraiu localmente as descrições do PDF fornecido pelo usuário, sem enviar o arquivo a serviço externo. A proposta de catálogo com atributos, vários códigos de fornecedores por SKU, revisão contextual e recebimento sem duplicação está no [documento de cadastro assistido da workspace](../../docs/07-cadastro-assistido.md#nomes-diferentes-para-o-mesmo-produto--análise-de-23102026), no diretório `docs` fora do repositório Git `web`.
+
+Foram definidos os cenários NOM-01 a NOM-11 antes de qualquer implementação. São cenários planejados, sem testes funcionais escritos ou executados nesta análise. A verificação desta entrega limita-se ao conteúdo, UTF-8, links locais e whitespace dos documentos; não houve alteração de código ou nova execução de suíte/build. Vínculos completos, extração de atributos, PDF e recebimento de compra por item permanecem pendentes; a aplicação atual apenas cria cadastros sem saldo na importação XML.
+
+## Revisão de esforço operacional — 23/10/2026
+
+**Status: concluído no escopo de requisitos; implementação pendente.** O usuário rejeitou o custo de campos, cliques e esperas por item e manteve obrigatórias precisão de estoque e prestação de contas. O coordenador confirmou por inspeção que a importação atual pede preço de venda para cada produto novo e possui uma segunda tela de revisão. Não foi realizado benchmark da aplicação.
+
+O [cadastro assistido da workspace](../../docs/07-cadastro-assistido.md) substitui o fluxo proposto por uma página, resolução em lote, decisões apenas sobre exceções, preço de venda pendente separado do recebimento e coordenação dos efeitos autorizados sem lançamento repetido. NOM-08 foi esclarecido por essa mudança de requisito; foram definidos USO-01 a USO-10 antes de código. Os critérios incluem esforço, integridade e medição de desempenho, sem prometer tempos ainda não medidos. O documento 02 e as duas entradas AGENTS.md incorporam a orientação; os perfis de agentes não mudaram.
+
+Verificação desta revisão: coerência entre fluxo e critérios, UTF-8, controles, links locais, whitespace, sincronização das novas regras entre as duas entradas e preservação do bloco Next.js. Nenhuma implementação, alteração de teste automatizado, nova suíte/build ou integração foi realizada; não há ganho de cliques ou de desempenho comprovado no produto por esta revisão documental.
+
+## Folha da OS e acesso por leitor — 23/10/2026
+
+**Status: concluído no escopo de análise; implementação pendente.** O usuário propôs apresentar a folha da OS na retirada e ler seu código para localizar e atualizar o atendimento. O coordenador conferiu o detalhe por identificador e as ações existentes; a aplicação ainda não gera comprovante com código nem captura a leitura. A [proposta na workspace](../../docs/02-fluxos-e-requisitos.md#folha-da-os-e-atendimento-por-leitura-de-código--proposta-de-23102026) define Salvar e imprimir sem redigitação, abertura direta, entrega contextual, exceções de retirante e pendências, referência sem dados pessoais e separação da senha do aparelho. O design system aponta para os mesmos critérios.
+
+LEI-01 a LEI-11 foram definidos antes de código; continuam cenários planejados, sem testes funcionais executados. Conferência documental: UTF-8, links, controles, whitespace e coerência entre jornada e critérios. Não houve implementação, nova suíte/build, impressão ou ensaio com hardware. Tempos, legibilidade física e compatibilidade com o leitor da loja não foram medidos; sessão, isolamento e operador autenticado continuam dependências do backend.
+
+## Implementação de importação e atendimento por código — 23/10/2026
+
+**Status: concluído no recorte local, com QA independente.** Após autorização para desenvolver e retomada solicitada pelo usuário, a equipe executou duas frentes com arquivos exclusivos: desenvolvedor de compras em `purchases/` e `xml-import.tsx`, desenvolvedor de OS em `service-orders.tsx`, `order-code.ts` e `order-receipt.tsx`, QA nos testes/evidências e coordenador no domínio compartilhado, persistência, venda, estilos e documentação. Sessões interrompidas por limite foram retomadas com novos responsáveis sobre o estado preservado; nenhum trabalho anterior foi descartado.
+
+Os testes precederam o comportamento: rodada pura inicial e RED de navegador liberaram implementação por conjunto. Casos adicionais reproduziram defeitos antes das correções. A fronteira de escrita dos dois casos de fingerprint e ajustes legítimos de harness estão descritos no [registro de execução de compras da workspace](../../docs/07-cadastro-assistido.md#execução-e-evidências--23102026). As interações antigas de importação e OS foram revistas antes das novas telas pelos requisitos USO/LEI, mantendo os resultados de negócio.
+
+**Resultado final:** 45 novos cenários (28 domínio, 17 navegador); `npm.cmd test` com 164 testes Playwright e três checks estáticos aprovados, sem falhas/ignorados; tipos e build aprovados pelo coordenador. QA aprovou funcionalidade e revisão independente; o desenvolvedor da OS revisou separadamente as mudanças do coordenador em store/restauração/elegibilidade, sem aprovar sua própria UI. Ajuste exclusivamente visual posterior foi reinspecionado em 1440/390 px: campos de no mínimo 44 px e zero transbordamento. O servidor iniciado pelo QA foi encerrado antes do build.
+
+Importação em lote: três ações na aplicação e zero ações por linha para itens conhecidos. Em uma amostra Chrome local, 50 itens levaram 93/63 ms para resumo/gravação e 500 levaram 69/90 ms; sem navegação ou chamadas de backend. Leitura simulada da OS levou 58 ms. Não são garantia de produção, comparação de produtividade ou ensaio de hardware. Capturas: [Importação desktop](evidencias/importacao-lote-desktop.png), [Importação mobile](evidencias/importacao-lote-mobile.png), [OS com leitor](evidencias/os-leitor-entrega.png), [Comprovante](evidencias/os-comprovante-impressao.png) e [PDF A4 demonstrativo](evidencias/os-comprovante-demonstrativo.pdf).
+
+Limites e pendências de produção permanecem explícitos: backend/auth por empresa, validação fiscal, PDF/OCR/IA externa, contas a pagar, recebimento de séries/cores e hardware físico. Compras não fabricam pagamentos e entregas não quitam saldo. A versão local 3 e os históricos anteriores foram preservados. Não houve publicação, integração externa, alteração global ou commit nesta rodada.
+
+Hashes SHA256 finais dos testes verificados:
+
+```text
+intelligent-browser.spec.ts BBBFD26A01519945FD042B09EB72FD8DF87E01F9C89718B8FF4C482BC022625E
+intelligent-purchases.spec.ts B5764E7250A695024B978A3A93535A7A3E0FAE86DB7078E2F76D425271E92EAF
+intelligent-orders.spec.ts 28441FA7126491ECFCEBFBFD236C5D67E196C309B83D57D73B92D042473A3C39
+intelligent-helpers.ts CA69787C5AC43A9BD7012BAA39C0F994010DD34D768B64FD8215C0DBBC3DE75C
+prototype.spec.ts 4FB561E7A5C1A00567D9071DD0B54C9F964627D92CC381D5A24ADA60B6FE70D7
+```
+
+Conferência final do coordenador: UTF-8 e controles de 40 arquivos textuais, 83 links locais existentes e novas âncoras válidas, cinco hashes de testes conferidos, sete pares de perfis idênticos, bloco gerado Next.js preservado e `git diff --check` aprovado. As capturas finais das duas jornadas também foram inspecionadas pelo coordenador. Documentação principal de requisitos permanece no diretório `docs` da workspace, fora do Git de `web`, conforme os links acima.
+
+## Preços e lucro estimado no catálogo — 23/10/2026
+
+**Status: concluído no protótipo local, com QA independente.** O coordenador definiu o recorte no [documento dos cadastros no contexto](14-cadastros-no-contexto.md): preço de compra e venda visíveis, cálculo por unidade e margem sobre a venda, sem novas etapas. QA escreveu e executou seis cenários antes do produto; seis falhas pertinentes liberaram a implementação pelo coordenador em componente compartilhado, editor, lista e CSS. A interação de um helper existente mudou de `Custo de referência` para `Preço de compra` pelo requisito explícito, sem alterar valores ou expectativas de domínio.
+
+Seis novos testes aprovados em 7,5 s; regressão única com **170 testes Playwright e três checks estáticos aprovados**, sem falhas ou ignorados, em 1,7 min. QA revisou o código independentemente e conferiu 1440/390 px, teclado, preço pendente, centavos, zeros, prejuízo, cancelamento e persistência sem alterar estoque/histórico. Coordenador inspecionou as três capturas e aprovou tipos/build depois que o servidor QA foi encerrado. Hashes, capturas, observações de resposta e limites estão no documento da tarefa.
+
+O cálculo não exige botão, digitação de lucro, navegação ou chamada de backend. Compra usa a referência já cadastrada; a estimativa antecede impostos, taxas e despesas e não é lucro contábil. Não houve mudança de schema/store, dependência nova, commit ou publicação.
+
+## Continuidade das funcionalidades faltantes — 24/10/2026
+
+**Status: concluído o recorte LPR, com QA independente.** O coordenador confrontou as docs com o código e registrou as lacunas no [backlog da workspace](../../docs/05-backlog-e-qa.md). Priorizou a precificação em lote, já prevista no cadastro assistido, e a resolução do preço pendente durante a venda. Implementou somente após os cenários prévios do QA: 13 de domínio e oito de navegador; 13 falhas pertinentes e oito negativos inicialmente satisfeitos pelo erro dos stubs, sem tratar estes últimos como validação funcional.
+
+QA reproduziu um defeito de foco na primeira entrega e manteve a expectativa; a correção após abertura nativa do diálogo foi verificada no mesmo teste. Regressão única: **191 testes Playwright e três checks estáticos aprovados**, sem falhas ou ignorados, em 2,0 min. Tipos e build aprovados pelo coordenador após encerramento do servidor QA. As três capturas foram inspecionadas por ambos. Hashes, critérios, execução e limites estão no [cadastro assistido](../../docs/07-cadastro-assistido.md).
+
+Ensaio Chrome local com 50 produtos: um percentual e uma confirmação para o conjunto, sem decisões por item; três ações principais incluindo abrir o lote, uma escrita, zero navegações/fetch. Observações de 49/88 ms para prévia/gravação incluem automação e não representam SLO ou ganho validado. No celular há rolagem horizontal para as colunas e vertical para a confirmação, também disponível por Enter.
+
+Lote e cadastro individual de produto gravam antes de anunciar sucesso; falha preserva rascunhos e preços, sem efeito em estoque, operações anteriores ou dinheiro. Sem mudança de schema/versão local, dependência nova, commit, publicação ou integração externa. Ao final daquela rodada, vendas com vários itens, peças/versões de OS, séries, devoluções, financeiro ampliado, parceiros persistentes e backend permaneciam pendentes; a entrega posterior do carrinho está registrada abaixo.
+
+## Carrinho de venda e reserva do conjunto — 24/10/2026
+
+**Status: concluído no recorte local, com QA independente.** O usuário aprovou a recomendação de vender vários produtos em um pedido. Coordenador definiu CAR-01 a CAR-10 no documento 02; QA reutilizado manteve autoria dos novos testes e revisão independente. Gate prévio: 25 cenários, 15 falhas pertinentes e dez negativos satisfeitos pelo erro dos stubs, sem aprovação funcional desses negativos. O reforço do ID da tentativa foi escrito/repetido antes da nova UI.
+
+Coordenador implementou domínio, store durável, editor de carrinho, integração da tela, foco por linha e CSS. QA conferiu reserva/baixa do conjunto, idempotência, snapshots, falhas de gravação, cadastros/preço/entrada no Item 2 e efeitos no financeiro/fiscal simulado/relatórios. Ajuste de harness escopou o alerta operacional ao `main`, distinguindo o announcer vazio do Next, sem remover mensagem ou invariantes.
+
+**Validação:** 216 testes Playwright e três checks estáticos aprovados, sem falhas/ignorados, em 2,4 min; 191 casos anteriores preservados. Após refinamento exclusivamente CSS para compactar três itens no desktop, CAR-B01/B02 e a inspeção desktop/mobile passaram sem repetir toda a regressão. Tipos e build aprovados pelo coordenador depois do servidor QA ser encerrado; as duas capturas finais também foram inspecionadas pelo coordenador.
+
+Ensaio de três produtos: um cliente e uma confirmação, dez ações de controle contando seleções/quantidades/adicionar linhas, nenhuma gravação por item, navegação ou fetch, uma escrita local. Observações de 18/30 ms para recálculo/gravação incluem automação e não constituem SLO. Desktop exibe os três itens, total e confirmação sem rolagem; celular conserva rolagem interna e confirmação por teclado. Métodos, hashes e capturas no [registro da venda](../../docs/02-fluxos-e-requisitos.md).
+
+Sem mudança de schema/versão, dependência, commit ou publicação. Backend, séries individuais, cancelamento/devolução e orçamento versionado com peças da OS permanecem pendentes. A próxima recomendação é desenvolver orçamento versionado e reserva/consumo de peças respeitando a autorização, sem reescrever a aprovação anterior.
+
+## Identidade real e equipe conectada — 25/10/2026
+
+**Status: concluído no recorte de fundação e ACC; solicitação operacional ampliada parcial.** A escolha explícita do usuário por login real/dados compartilhados priorizou backend e contas. Coordenador manteve configuração, ferramentas, UI e documentos; desenvolvedor recebeu API/fontes de autorização; QA manteve testes e revisão independente. Os requisitos foram definidos nos documentos 13/15. A criação de funcionário usa SDK e intenção recuperável, sem incorporar conta alheia; vínculo/auditoria transacionam juntos. Permissões atuais de clientes são revalidadas a cada requisição; último gestor protegido na concorrência.
+
+Testes prévios e limites do protocolo (incluindo três testes UI complementares sem RED prévio comprovado) registrados no documento 15. QA reproduziu os defeitos de migração, schema, relógio de teste, recuperação, foco, resposta atrasada, filtros entre sessões e edição em voo antes das correções pertinentes. Backend: 55 cenários únicos aprovados em rodadas, não uma única suíte final de 55. Frontend: regressão 226 mais três checks estáticos; após ajuste isolado, 11 testes da área, tipos e build passaram. Smoke real Chrome→cookie→API→PostgreSQL aprovou cadastro e efeito de conceder/revogar direitos sem novo login. Builds/tipos aprovados; sem fontes de saldo parcialmente migradas ou publicação.
+
+Evidências e parecer independente no [recorte ACC](15-auditoria-acessos-e-filtros.md); preparação explícita do primeiro gestor no [guia da API](../server/README.md). Próxima prioridade: integrar os módulos operacionais de forma coerente para entregar histórico/autoria, metadados e filtros de produtos/OS/compras e aplicar os demais direitos de domínio. Uma pasta temporária ignorada foi preservada após rejeição automática da exclusão recursiva; o banco foi encerrado, sem contornar a política.
+
+## Operação conectada — 26/10/2026
+
+**Status: implementação e validação automática local concluídas; revisão independente pendente.** O usuário pediu continuar o trabalho autorizado. Análise inicial delimitou produto/estoque/venda/OS/compra com uma única fonte de saldo. Os agentes de análise/QA ficaram indisponíveis por limite de uso antes de escrever testes; o coordenador assumiu testes prévios, implementação, integração e documentação. Essa verificação não conta como revisão independente.
+
+Contratos, TDD, correções justificadas de fixtures, comandos e resultados finais estão no [registro OP](15-auditoria-acessos-e-filtros.md). A área `/operacao/` usa login real e direitos por ação, reaproveita cadastro contextual e processa XML/preços em lote. Demonstração permanece independente e preservada. Não houve publicação, migração de dados reais, efeito financeiro/fiscal ou mudança dos sete perfis de agentes. Próximas lacunas: revisão independente, paridade da OS com impressão/leitor, peças e orçamento versionado; financeiro/relatórios conectados precisam de recorte próprio.
+
+Verificação: 76 casos únicos de backend aprovados em rodadas (55 anteriores e 21 operacionais); rodada final web de 236 casos mais três checks estáticos; tipos/builds aprovados. Smoke real Chrome/cookie/PostgreSQL aprovou contexto de OS, saldo/reserva/baixa, XML500 com um plano/uma confirmação, restrição de custo, revogação e logout. Nenhuma navegação de documento após login; medições locais e limites no documento 15. A regressão encontrou e corrigiu consulta SQL e seletor ambíguo, sem enfraquecer expectativas. OP17 é cobertura complementar sem RED prévio comprovado, limite do protocolo registrado.

@@ -13,12 +13,12 @@ import {
 } from "lucide-react";
 import { useDemo, uid } from "@/lib/demo-store";
 import { matches, money, type Product } from "@/lib/domain";
+import { ProductEditor, StockEntryEditor } from "@/components/contextual-catalog";
+import { ProductProfit } from "@/components/product-profit";
+import { BulkPricingEditor } from "@/components/bulk-pricing-editor";
 import {
   Badge,
   EmptyState,
-  Field,
-  FormActions,
-  FormError,
   Modal,
   PageHeader,
   PaginationInfo,
@@ -26,13 +26,13 @@ import {
 } from "@/components/ui";
 
 export function ProductsPage({ inventory = false }: { inventory?: boolean }) {
-  const { state, saveProduct, receiveStock } = useDemo();
+  const { state } = useDemo();
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("");
   const [lowOnly, setLowOnly] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
   const [stockProduct, setStockProduct] = useState<Product | null>(null);
-  const [error, setError] = useState("");
+  const [pricing, setPricing] = useState(false);
   useEffect(() => {
     setQuery(new URLSearchParams(window.location.search).get("q") || "");
   }, []);
@@ -43,7 +43,6 @@ export function ProductsPage({ inventory = false }: { inventory?: boolean }) {
       (!lowOnly || p.stock - p.reserved < p.minimum),
   );
   const openNew = () => {
-    setError("");
     setEditing({
       id: uid(),
       sku: "",
@@ -71,6 +70,7 @@ export function ProductsPage({ inventory = false }: { inventory?: boolean }) {
         }
         action={
           <>
+            {!inventory && <button className="button button-secondary" onClick={() => setPricing(true)}>Definir preços em lote</button>}
             <Link className="button button-secondary" href="/importar/">
               <Upload size={17} />
               Importar XML
@@ -119,7 +119,7 @@ export function ProductsPage({ inventory = false }: { inventory?: boolean }) {
           </span>
         </div>
       </div>
-      <section className="panel">
+      <section className={`panel${inventory ? "" : " products-catalog"}`}>
         <div className="list-toolbar">
           <SearchField
             value={query}
@@ -150,6 +150,7 @@ export function ProductsPage({ inventory = false }: { inventory?: boolean }) {
             </button>
           </div>
         </div>
+        {!inventory && <p className="product-pricing-note">Valores por unidade. Compra: referência do cadastro. Lucro estimado antes de impostos, taxas e outras despesas; margem sobre a venda.</p>}
         {filtered.length ? (
           <div className="table-scroll">
             <table>
@@ -157,9 +158,11 @@ export function ProductsPage({ inventory = false }: { inventory?: boolean }) {
                 <tr>
                   <th>PRODUTO</th>
                   <th>CATEGORIA</th>
+                  {!inventory && <th className="number">PREÇO DE COMPRA</th>}
                   <th className="number">
                     {inventory ? "FÍSICO" : "PREÇO DE VENDA"}
                   </th>
+                  {!inventory && <th className="number">LUCRO ESTIMADO</th>}
                   <th className="number">RESERVADO</th>
                   <th className="number">DISPONÍVEL</th>
                   <th>SITUAÇÃO</th>
@@ -188,9 +191,11 @@ export function ProductsPage({ inventory = false }: { inventory?: boolean }) {
                       </div>
                     </td>
                     <td className="muted">{p.category}</td>
+                    {!inventory && <td className="number">{money(p.cost)}</td>}
                     <td className="number strong">
-                      {inventory ? p.stock : money(p.price)}
+                      {inventory ? p.stock : p.pricePending ? "Preço pendente" : money(p.price)}
                     </td>
+                    {!inventory && <td className="number"><ProductProfit cost={p.cost} price={p.pricePending ? null : p.price} /></td>}
                     <td className="number muted">{p.reserved}</td>
                     <td className="number strong">
                       {p.stock - p.reserved}{" "}
@@ -214,7 +219,6 @@ export function ProductsPage({ inventory = false }: { inventory?: boolean }) {
                         <button
                           className="button button-small button-secondary"
                           onClick={() => {
-                            setError("");
                             setStockProduct(p);
                           }}
                         >
@@ -226,7 +230,6 @@ export function ProductsPage({ inventory = false }: { inventory?: boolean }) {
                           className="icon-button"
                           aria-label={`Editar ${p.name}`}
                           onClick={() => {
-                            setError("");
                             setEditing(p);
                           }}
                         >
@@ -271,158 +274,27 @@ export function ProductsPage({ inventory = false }: { inventory?: boolean }) {
           description="Cadastro não altera a quantidade em estoque."
           onClose={() => setEditing(null)}
         >
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              const f = new FormData(e.currentTarget);
-              try {
-                saveProduct({
-                  ...editing,
-                  name: String(f.get("name")).trim(),
-                  sku: String(f.get("sku")).trim(),
-                  category: String(f.get("category")),
-                  price: Math.round(Number(f.get("price")) * 100),
-                  cost: Math.round(Number(f.get("cost")) * 100),
-                  ncm: String(f.get("ncm")).trim(),
-                  serialized: f.get("serialized") === "on",
-                });
-                setEditing(null);
-              } catch (err) {
-                setError((err as Error).message);
-              }
-            }}
-          >
-            <div className="form-grid">
-              <Field label="Nome do produto *" className="full">
-                <input
-                  name="name"
-                  required
-                  maxLength={100}
-                  defaultValue={editing.name}
-                />
-              </Field>
-              <Field label="SKU / código interno *">
-                <input
-                  name="sku"
-                  required
-                  maxLength={30}
-                  defaultValue={editing.sku}
-                />
-              </Field>
-              <Field label="Categoria">
-                <select name="category" defaultValue={editing.category}>
-                  {[
-                    ...new Set([
-                      "Acessórios",
-                      "Armazenamento",
-                      "Componentes",
-                      "Periféricos",
-                      "Computadores",
-                      editing.category,
-                    ]),
-                  ].map((c) => (
-                    <option key={c}>{c}</option>
-                  ))}
-                </select>
-              </Field>
-              <Field label="Preço de venda (R$) *">
-                <input
-                  name="price"
-                  type="number"
-                  min="0"
-                  max="9999999"
-                  step="0.01"
-                  required
-                  defaultValue={editing.price / 100}
-                />
-              </Field>
-              <Field label="Custo de referência (R$)">
-                <input
-                  name="cost"
-                  type="number"
-                  min="0"
-                  max="9999999"
-                  step="0.01"
-                  defaultValue={editing.cost / 100}
-                />
-              </Field>
-              <Field label="NCM">
-                <input
-                  name="ncm"
-                  defaultValue={editing.ncm}
-                  placeholder="Completar após revisão fiscal"
-                  maxLength={8}
-                  pattern="[0-9]{8}|"
-                />
-              </Field>
-              <label className="checkbox-field">
-                <input
-                  type="checkbox"
-                  name="serialized"
-                  defaultChecked={editing.serialized}
-                />
-                Controlar por número de série
-              </label>
-            </div>
-            <FormError message={error} />
-            <FormActions
-              onClose={() => setEditing(null)}
-              label="Salvar produto"
-            />
-          </form>
+          <ProductEditor
+            product={editing}
+            onSaved={() => setEditing(null)}
+            onCancel={() => setEditing(null)}
+          />
         </Modal>
       )}
+      {pricing && <Modal title="Definir preços em lote" description="Confira os novos valores e confirme o conjunto selecionado." wide onClose={() => setPricing(false)}>
+        <BulkPricingEditor onSaved={() => setPricing(false)} onCancel={() => setPricing(false)} />
+      </Modal>}
       {stockProduct && (
         <Modal
           title="Registrar entrada manual"
           description={stockProduct.name}
           onClose={() => setStockProduct(null)}
         >
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              const f = new FormData(e.currentTarget);
-              try {
-                receiveStock(
-                  stockProduct.id,
-                  Number(f.get("quantity")),
-                  String(f.get("reason")),
-                );
-                setStockProduct(null);
-              } catch (err) {
-                setError((err as Error).message);
-              }
-            }}
-          >
-            <div className="notice notice-info">
-              A quantidade será somada ao estoque físico. Esta entrada
-              demonstrativa não gera nota fiscal ou conta a pagar.
-            </div>
-            <Field label="Quantidade recebida *">
-              <input
-                name="quantity"
-                type="number"
-                min="1"
-                max="100000"
-                step="1"
-                required
-                defaultValue={1}
-              />
-            </Field>
-            <Field label="Motivo / referência *">
-              <input
-                name="reason"
-                required
-                maxLength={160}
-                placeholder="Ex.: conferência da compra recebida"
-              />
-            </Field>
-            <FormError message={error} />
-            <FormActions
-              onClose={() => setStockProduct(null)}
-              label="Confirmar entrada"
-            />
-          </form>
+          <StockEntryEditor
+            product={stockProduct}
+            onSaved={() => setStockProduct(null)}
+            onCancel={() => setStockProduct(null)}
+          />
         </Modal>
       )}
     </>

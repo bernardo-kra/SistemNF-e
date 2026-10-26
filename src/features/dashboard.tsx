@@ -20,6 +20,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useDemo } from "@/lib/demo-store";
+import { technicianNameKey, techniciansForState } from "@/lib/technicians";
 import { money, stages, TODAY, dateLabel } from "@/lib/domain";
 import { installmentBalance } from "@/lib/finance/engine";
 import { Avatar, Badge, PageHeader, Panel } from "@/components/ui";
@@ -342,13 +343,13 @@ export function Dashboard() {
           subtitle="Responsáveis pelos atendimentos"
         >
           <div className="team-list">
-            {["Ana Oliveira", "Pedro Lima"].map((name) => (
-              <div key={name}>
+            {techniciansForState(state).map(({ id, name }) => (
+              <div key={id}>
                 <Avatar name={name} />
                 <span>
                   <strong>{name}</strong>
                   <small>
-                    {active.filter((o) => o.technician === name).length} ordens
+                    {active.filter((o) => technicianNameKey(o.technician) === technicianNameKey(name)).length} ordens
                     em andamento
                   </small>
                 </span>

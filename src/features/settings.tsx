@@ -70,6 +70,15 @@ export function SettingsPage() {
         description="Conheça os limites desta etapa e gerencie os dados de demonstração."
       />
       <div className="settings-grid">
+        <Panel title="Equipe e acessos conectados">
+          <div className="detail-card-content">
+            <p className="body-copy">Entre com sua conta individual para administrar funcionários e permissões do ambiente conectado. Os dados desta demonstração continuam independentes.</p>
+            <Link className="button button-primary" href="/acessos/">
+              <ShieldCheck size={16} /> Gerenciar equipe e acessos
+            </Link>
+            <Link className="button button-secondary" href="/operacao/">Abrir operação conectada</Link>
+          </div>
+        </Panel>
         {!storageAvailable && (
           <Panel
             title="Recuperar dados locais"

@@ -5,31 +5,26 @@ import {
   Plus,
   Pencil,
   UsersRound,
-  Mail,
   Building2,
   UserRound,
 } from "lucide-react";
 import { useDemo, uid } from "@/lib/demo-store";
 import { matches, type Customer } from "@/lib/domain";
-import { AddressFields, readAddress } from "@/components/fiscal-fields";
+import { CustomerEditor } from "@/components/contextual-catalog";
 import {
   Avatar,
   Badge,
   EmptyState,
-  Field,
-  FormActions,
   Modal,
-  FormError,
   PageHeader,
   PaginationInfo,
   SearchField,
 } from "@/components/ui";
 
 export function CustomersPage() {
-  const { state, saveCustomer } = useDemo();
+  const { state } = useDemo();
   const [query, setQuery] = useState("");
   const [type, setType] = useState("");
-  const [error, setError] = useState("");
   const [editing, setEditing] = useState<Customer | null>(null);
   const openNew = () =>
     setEditing({
@@ -185,90 +180,11 @@ export function CustomersPage() {
           description="Comece com as informações necessárias para o atendimento."
           onClose={() => setEditing(null)}
         >
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              const f = new FormData(e.currentTarget);
-              try {
-                saveCustomer({
-                  ...editing,
-                  id: editing.id,
-                  name: String(f.get("name")).trim(),
-                  email: String(f.get("email")).trim(),
-                  phone: String(f.get("phone")).trim(),
-                  type: String(f.get("type")) as Customer["type"],
-                  document: String(f.get("document") || "").trim(),
-                  fiscalAddress: readAddress(f),
-                });
-                setEditing(null);
-              } catch (err) {
-                setError((err as Error).message);
-              }
-            }}
-          >
-            <div className="form-grid">
-              <Field label="Nome / razão social *" className="full">
-                <input
-                  name="name"
-                  required
-                  maxLength={100}
-                  defaultValue={editing.name}
-                />
-              </Field>
-              <Field label="Tipo de cliente">
-                <select name="type" defaultValue={editing.type}>
-                  <option>Pessoa física</option>
-                  <option>Empresa</option>
-                </select>
-              </Field>
-              <Field label="Telefone">
-                <input
-                  name="phone"
-                  type="tel"
-                  maxLength={25}
-                  defaultValue={editing.phone}
-                />
-              </Field>
-              <Field label="E-mail" className="full">
-                <input
-                  name="email"
-                  type="email"
-                  maxLength={120}
-                  defaultValue={editing.email}
-                />
-              </Field>
-            </div>
-            <details className="fiscal-form-details">
-              <summary>
-                Dados fiscais e endereço · opcionais no cadastro
-              </summary>
-              <p>
-                A preparação fiscal aponta quando estes dados forem necessários
-                para a simulação. Não consultamos situação cadastral.
-              </p>
-              <div className="form-grid">
-                <Field label="CPF / CNPJ" className="full">
-                  <input
-                    name="document"
-                    defaultValue={editing.document || ""}
-                    maxLength={18}
-                    placeholder="CNPJ também aceita letras"
-                    autoCapitalize="characters"
-                  />
-                </Field>
-                <AddressFields address={editing.fiscalAddress} />
-              </div>
-            </details>
-            <div className="form-note">
-              <Mail size={16} />
-              Nenhuma mensagem será enviada por este protótipo.
-            </div>
-            <FormError message={error} />
-            <FormActions
-              onClose={() => setEditing(null)}
-              label="Salvar cliente"
-            />
-          </form>
+          <CustomerEditor
+            customer={editing}
+            onSaved={() => setEditing(null)}
+            onCancel={() => setEditing(null)}
+          />
         </Modal>
       )}
     </>

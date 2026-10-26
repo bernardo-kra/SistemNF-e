@@ -9,6 +9,15 @@ let fixture: Fixture;
 before(async () => { fixture = await createFixture(); });
 after(async () => { if (fixture) await fixture.close(); });
 
+// PostgreSQL é a autoridade dos instantes. A investigação local observou 5/100 eventos
+// 1 ms adiante de Date.now(), mas nenhum fora dos limites do próprio banco.
+async function databaseTimeMs() {
+  const result = await fixture.a.migrationPool.query("SELECT floor(extract(epoch FROM clock_timestamp())*1000)::bigint::text AS epoch_ms");
+  const value = Number(result.rows[0].epoch_ms);
+  assert.ok(Number.isSafeInteger(value), "database clock must return a valid epoch millisecond");
+  return value;
+}
+
 async function scenario(run: (app: TestApp, user: TestUser, cookie: string) => Promise<void>, role = "owner", both = false) {
   const app = await fixture.app();
   try {
@@ -446,4 +455,67 @@ test("BE-10 smoke por HTTP real autentica, consulta e revoga em loopback", async
     assert.equal(logout.status, 200);
     assert.equal((await fetch(`${address}/api/v1/me`, { headers: { cookie } })).status, 401);
   } finally { await app.close(); }
+});
+
+// Complemento aprovado do doc15: horário/autoria do servidor e ausência de escrita em PATCH sem mudança.
+test("ACES-T01 criação, alteração e auditoria usam instantes UTC do servidor; horário forjado é recusado", async () => {
+  await scenario(async (app, user, cookie) => {
+    const started = await databaseTimeMs();
+    const customer = await createCustomer(app, cookie, TENANT_A, { name: "Cliente QA horário" });
+    const patch = await app.instance.inject({ method: "PATCH", url: `${tenantPath()}/${customer.id}`, headers: authHeaders(cookie), payload: { version: 1, phone: "11912340000" } });
+    assert.equal(patch.statusCode, 200, patch.body);
+    const edited = patch.json().customer;
+    const finished = await databaseTimeMs();
+    for (const value of [customer.createdAt, customer.updatedAt, edited.createdAt, edited.updatedAt]) {
+      assert.equal(typeof value, "string");
+      assert.match(value, /(?:Z|\+00:00)$/);
+      const timestamp = Date.parse(value);
+      assert.ok(Number.isFinite(timestamp) && timestamp >= started && timestamp <= finished, "DTO time must come from the request's server interval");
+    }
+    assert.equal(edited.createdAt, customer.createdAt);
+    const events = await fixture.a.migrationPool.query("SELECT at,actor_id,tenant_id,entity_version FROM audit_events WHERE entity_id=$1 ORDER BY entity_version", [customer.id]);
+    assert.equal(events.rowCount, 2);
+    for (const event of events.rows) {
+      const timestamp = new Date(event.at).getTime();
+      assert.ok(Number.isFinite(timestamp) && timestamp >= started && timestamp <= finished, "audit time must come from the server interval");
+      assert.equal(event.actor_id, user.id); assert.equal(event.tenant_id, TENANT_A);
+    }
+    const spoofed = await app.instance.inject({ method: "PATCH", url: `${tenantPath()}/${customer.id}`, headers: authHeaders(cookie), payload: { version: 2, phone: "11999991111", updatedAt: "2000-01-01T00:00:00.000Z", at: "2000-01-01T00:00:00.000Z" } });
+    assertError(spoofed, 400);
+    assert.equal((await fixture.a.migrationPool.query("SELECT count(*)::int AS count FROM audit_events WHERE entity_id=$1", [customer.id])).rows[0].count, 2);
+    const read = await app.instance.inject({ method: "GET", url: `${tenantPath()}/${customer.id}`, headers: { cookie } });
+    assert.deepEqual(read.json().customer, edited);
+  });
+});
+
+test("ACES-T02 PATCH sem mudança preserva versão/data/auditoria; alteração real muda somente os metadados pertinentes", async () => {
+  await scenario(async (app, _user, cookie) => {
+    const customer = await createCustomer(app, cookie, TENANT_A, { name: "Cliente QA sem mudança" });
+    const before = (await fixture.a.migrationPool.query("SELECT count(*)::int AS count FROM audit_events WHERE entity_id=$1", [customer.id])).rows[0].count;
+    // PostgreSQL/JSON expõem milissegundos; separar os instantes torna verificável uma atualização real.
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    const unchanged = await app.instance.inject({ method: "PATCH", url: `${tenantPath()}/${customer.id}`, headers: authHeaders(cookie), payload: { version: customer.version, name: customer.name, email: customer.email } });
+    assert.equal(unchanged.statusCode, 200, unchanged.body);
+    assert.deepEqual(unchanged.json().customer, customer);
+    assert.equal((await fixture.a.migrationPool.query("SELECT count(*)::int AS count FROM audit_events WHERE entity_id=$1", [customer.id])).rows[0].count, before);
+    const started = await databaseTimeMs();
+    const changed = await app.instance.inject({ method: "PATCH", url: `${tenantPath()}/${customer.id}`, headers: authHeaders(cookie), payload: { version: customer.version, phone: "11955550000" } });
+    assert.equal(changed.statusCode, 200, changed.body);
+    const edited = changed.json().customer;
+    const finished = await databaseTimeMs();
+    assert.equal(edited.version, customer.version + 1); assert.equal(edited.createdAt, customer.createdAt);
+    assert.ok(Date.parse(edited.updatedAt) >= started && Date.parse(edited.updatedAt) <= finished);
+    assert.notEqual(edited.updatedAt, customer.updatedAt);
+    assert.equal((await fixture.a.migrationPool.query("SELECT count(*)::int AS count FROM audit_events WHERE entity_id=$1", [customer.id])).rows[0].count, before + 1);
+  });
+});
+
+test("BE-06d nome no limite válido de 120 caracteres é aceito integralmente sem truncar", async () => {
+  await scenario(async (app, _user, cookie) => {
+    const name = "N".repeat(120);
+    const customer = await createCustomer(app, cookie, TENANT_A, { name });
+    assert.equal(customer.name, name);
+    const stored = await fixture.a.migrationPool.query("SELECT name,length(name)::int AS length FROM customers WHERE id=$1", [customer.id]);
+    assert.deepEqual(stored.rows, [{ name, length: 120 }]);
+  });
 });

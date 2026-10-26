@@ -6,6 +6,8 @@ O usuário autorizou começar o backend. A aplicação existente é uma exporta�
 
 **Estado em 19/10/2026: preparação parcial, sem API implementada.** Contratos e 30 cenários de teste foram escritos antes do código de produto. Existem manifesto/lockfile, configuração TypeScript e ferramentas iniciais de PostgreSQL local; ainda não há `server/src`, migrações ou servidor HTTP. Arquiteto avaliou a estrutura por leitura. Coordenador mantém configuração, ferramentas e este documento; QA escreve os testes e verifica independentemente; desenvolvedor recebe implementação após os testes prévios e o registro correto de seus limites.
 
+**Retomada em 24–25/10/2026:** o pedido de autoria/horário, filtros e controle por funcionário priorizou esta fundação. Em 25/10 o usuário escolheu explicitamente login real e dados compartilhados. API, configuração, migrações e ferramentas estão implementadas e verificadas localmente. O painel conectado e as permissões configuráveis de clientes também foram entregues no [recorte ACC](15-auditoria-acessos-e-filtros.md), com validação independente. Produtos/OS/compras e demais direitos operacionais permanecem pendentes. O histórico de 19/10 abaixo permanece como registro do checkpoint, sem representar o estado atual.
+
 ## Decisões
 
 - Fastify 5, Better Auth e `pg`, com versões verificadas e fixadas em manifesto/lockfile próprios. Better Auth fornece senha/sessão; não implementar mecanismo próprio de autenticação. Sessões persistem no banco central, sem cache de cookie que atrase revogação.
@@ -20,7 +22,7 @@ O usuário autorizou começar o backend. A aplicação existente é uma exporta�
 
 Base local prevista: `http://127.0.0.1:4000`. Origem do frontend permitida explicitamente: `http://127.0.0.1:3000`. Origem permitida não substitui sessão. Cookies `HttpOnly`, `SameSite=Lax`; `Secure` obrigatório fora de desenvolvimento HTTP em loopback. Mutações exigem Origin permitido, inclusive login/logout. Não armazenar sessão em localStorage nem retornar token em DTO.
 
-Login será limitado a cinco tentativas por 60 segundos por IP da conexão, retornando `429` ao exceder. Headers de IP fornecidos pelo cliente não podem alterar esse limite. Configuração prevista: `NODE_ENV`, `API_HOST`, `API_PORT`, `API_BASE_URL`, `FRONTEND_ORIGIN`, `BETTER_AUTH_SECRET`, `CONTROL_DATABASE_URL` e `TENANT_DATABASE_URLS`; esse último é um mapa interno com no máximo 16 conexões. Segredo de autenticação com ao menos 32 caracteres; produção exige origens HTTPS explícitas. Esses contratos ainda precisam de implementação e aprovação dos testes.
+Login limitado a cinco tentativas por 60 segundos por IP da conexão, retornando `429` ao exceder. Headers de IP fornecidos pelo cliente não podem alterar esse limite. Configuração: `NODE_ENV`, `API_HOST`, `API_PORT`, `API_BASE_URL`, `FRONTEND_ORIGIN`, `BETTER_AUTH_SECRET`, `CONTROL_DATABASE_URL` e `TENANT_DATABASE_URLS`; esse último é um mapa interno com no máximo 16 conexões. Segredo de autenticação com ao menos 32 caracteres; produção exige origens HTTPS explícitas. Implementação e evidências atuais estão na retomada abaixo.
 
 | Método e rota | Comportamento esperado |
 | --- | --- |
@@ -75,6 +77,26 @@ Checkpoint solicitado pelo usuário em 19/10/2026, antes de continuar a implemen
 - As entregas anteriores do frontend têm resultados próprios nos documentos 11/12. A regressão de 96 casos e o build aprovados naquela entrega não são validação deste backend.
 
 Os scripts `dev`, `start`, `db:local` e `setup:local` de `server/package.json` antecipam os próximos arquivos e **ainda não são comandos de uma API utilizável**. A retomada deve implementar a preparação mínima das fixtures, obter falhas funcionais dos cenários e só então concluir os comportamentos, preservando as expectativas independentes do QA. Nenhum endpoint, autenticação, isolamento, migração operacional ou integração do frontend está entregue neste checkpoint. Credenciais, dados do cluster, dependências instaladas e `dist/` ficam fora do Git.
+
+## Retomada executada — 25/10/2026
+
+Implementados `server/src` e as ferramentas locais descritas no [guia de execução](../server/README.md), sem alterar a fonte de dados do protótipo. Testes usam somente clusters isolados e dados fictícios; nenhum gestor real, banco de produção ou publicação foi criado nesta rodada.
+
+A preparação mínima das fixtures permitiu executar os cenários funcionais antes de completar a API: configuração positiva falhou nos stubs e cenários HTTP falharam nas respostas provisórias. Depois da implementação, a primeira suíte de 33 passou. A revisão estrutural acrescentou testes antes de corrigir dois problemas reproduzidos: migrações concorrentes podiam esgotar o pool de duas conexões; readiness aceitava schema incompatível quando apenas a conexão respondia. A introspecção da migração foi movida para antes do lock transacional e a prontidão passou a aguardar a validação da biblioteca. Preparação local ganhou teste de credenciais runtime realmente funcionais antes de escrever a configuração; o primeiro RED mostrou anúncio indevido de sucesso quando a senha interna havia sido alterada.
+
+A suíte foi ampliada para 39 cenários (29 API, quatro configuração, três dados explícitos do gestor, duas infraestrutura, um preparação). Uma execução inicial teve 38 aprovados e falha no intervalo de horário da auditoria. A investigação isolada de 50 operações/100 eventos mostrou cinco eventos 1 ms à frente do limite `Date.now()` do Node, nenhum fora dos limites de `clock_timestamp()` do PostgreSQL e zero diferença entre driver e epoch truncado do banco. O oráculo passou a comparar limites do mesmo relógio autoritativo, sem tolerância adicional, mantendo UTC, autoria, versões, recusa de forjado e no-op. Não houve mudança de comportamento para fazer o teste passar.
+
+A rodada independente seguinte aprovou os 39 cenários funcionais, mas terminou com exit code 1 pelo encerramento de um cluster: o PostgreSQL recebeu a parada regular e terminou após 52,393 s (51,982 s de sincronização), além do deadline de 30 s da ferramenta. O STOP local passou para 90 s com timeout de processo de 120 s. A execução RED posterior da nova migração encerrou regularmente com esse limite. O resultado completo após a correção da ferramenta permanece em validação; não tratar 39 aprovações funcionais com hook falho como suíte inteiramente aprovada.
+
+Na primeira regressão web desta retomada, 215/216 casos e os três checks estáticos passaram. O caso de navegação na importação registrou Fast Refresh durante upload/confirmação, mesma URL e apenas GET inicial do documento; a repetição com fontes estáveis registrou `passed` em `test-results/.last-run.json`, mas o canal do processo foi perdido antes de recuperar seu resumo completo. A regressão atual inclui também o painel e terá evidência própria; não atribuir contagens novas àquele arquivo isoladamente.
+
+O usuário pediu seguir para o [painel de contas ACC](15-auditoria-acessos-e-filtros.md), acrescentando `control_002` e direitos configuráveis de clientes. Sua validação é separada da fundação acima. O teste de migração foi atualizado para exigir as duas versões por esse requisito explícito, preservando concorrência/repetição.
+
+**Fechamento:** a repetição independente dos 39 testes passou com exit code 0 e cleanup regular. Mais 14 testes de contas e dois complementares de infraestrutura passaram, totalizando 55 cenários únicos verificados em rodadas. A regressão web passou 226 casos e três checks estáticos; após um ajuste pontual no painel, seus 11 testes, tipos e build passaram. Builds e tipos do servidor também passaram. O smoke com Chrome/cookies/PostgreSQL reais confirmou cadastro, autorização/revogação imediata e logout. Métodos, contagens sem duplicação, capturas e pendências estão no documento 15. Readiness agora confere as duas migrações e campos centrais necessários, além do schema de autenticação; vivacidade segue independente do banco. Nenhum processo de banco/API/Chrome dos testes ficou ativo. Uma pasta temporária ignorada permanece por rejeição automática da sua exclusão recursiva, com o banco já encerrado.
+
+## Continuidade operacional — 26/10/2026
+
+A área `/operacao/` acrescenta produtos, estoque, vendas, OS e compras à mesma identidade/empresa do painel. `tenant_002` acrescenta tabelas operacionais e histórico antes/depois, preservando os clientes existentes. O contrato, protocolo TDD, evidências finais e limites desta nova entrega ficam no [registro OP do documento 15](15-auditoria-acessos-e-filtros.md). A demonstração continua independente; iniciar a API não importa localStorage. Financeiro, caixa, fiscal, relatórios, peças e séries não foram conectados por esta etapa. Use as ferramentas explícitas de preparação para atualizar bancos locais; não há migração automática por HTTP. A revisão independente da etapa OP está pendente, sem reaproveitar o parecer anterior de ACC para aprová-la.
 
 ## Fontes verificadas
 

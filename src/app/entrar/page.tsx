@@ -1,4 +1,5 @@
 import { LoginPage } from "@/features/settings";
+import { DemoProvider } from "@/lib/demo-store";
 export default function Page() {
-  return <LoginPage />;
+  return <DemoProvider><LoginPage /></DemoProvider>;
 }

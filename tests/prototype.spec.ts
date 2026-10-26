@@ -91,26 +91,19 @@ test("OS exige aprovação e checklist antes de entregar", async ({ page }) => {
   await page
     .getByRole("button", { name: "Encaminhar para testes", exact: true })
     .click();
-  await page.getByRole("button", { name: "Confirmar etapa" }).click();
   await page
     .getByRole("button", { name: "Concluir testes", exact: true })
     .click();
   await page.getByRole("button", { name: "Confirmar etapa" }).click();
-  await expect(page.getByRole("dialog")).toBeVisible();
+  await expect(page.getByLabel("Funcionamento testado após o reparo")).toBeVisible();
   await page.getByLabel("Funcionamento testado após o reparo").check();
   await page.getByLabel("Equipamento e acessórios conferidos").check();
   await page.getByLabel("Resultado do serviço aprovado pelo técnico").check();
   await page.getByRole("button", { name: "Confirmar etapa" }).click();
-  await page
-    .getByRole("button", { name: "Registrar entrega", exact: true })
-    .click();
-  await page
-    .getByLabel("Nome do responsável pela retirada")
-    .fill("Mariana Costa");
-  await page
-    .getByLabel("Equipamento e acessórios foram conferidos e entregues")
-    .check();
-  await page.getByRole("button", { name: "Confirmar etapa" }).click();
+  const deliver = page.getByRole("button", { name: "Confirmar entrega a Mariana Costa", exact: true });
+  await expect(deliver).toBeDisabled();
+  await page.getByLabel("Confirmo a entrega com saldo pendente nesta demonstração", { exact: true }).check();
+  await deliver.click();
   await expect(
     page.getByRole("button", { name: "Atendimento concluído" }),
   ).toBeDisabled();
@@ -201,9 +194,6 @@ test("importação cria somente produtos novos e bloqueia o mesmo documento", as
 }) => {
   await page.goto("/importar/");
   await page.getByRole("button", { name: /Experimentar com uma nota/ }).click();
-  await page
-    .getByRole("button", { name: "Revisar cadastro", exact: true })
-    .click();
   await page.getByRole("button", { name: "Confirmar cadastros" }).click();
   await expect(
     page.getByText("2 novos cadastros criados.", { exact: false }),
@@ -214,15 +204,6 @@ test("importação cria somente produtos novos e bloqueia o mesmo documento", as
   ).toContainText("0 UN");
   await page.goto("/importar/");
   await page.getByRole("button", { name: /Experimentar com uma nota/ }).click();
-  await page
-    .getByLabel("Ação para Cabo USB-C")
-    .selectOption({ label: "Vincular: CAB-USB-C" });
-  await page
-    .getByLabel("Ação para Hub USB")
-    .selectOption({ label: "Vincular: HUB-USB" });
-  await page
-    .getByRole("button", { name: "Revisar cadastro", exact: true })
-    .click();
   await page.getByRole("button", { name: "Confirmar cadastros" }).click();
   await expect(
     page.getByRole("alert").filter({ hasText: "já foi utilizado" }),

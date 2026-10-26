@@ -5,25 +5,19 @@ import Link from "next/link";
 import {
   Plus,
   ShoppingBag,
-  Wallet,
   CheckCircle2,
   Clock3,
-  ArrowDownLeft,
 } from "lucide-react";
-import { useDemo, uid } from "@/lib/demo-store";
+import { useDemo } from "@/lib/demo-store";
+import { SaleEditor } from "@/components/sale-editor";
 import {
   dateLabel,
   matches,
   money,
-  sumOrder,
-  TODAY,
-  type ServiceOrder,
 } from "@/lib/domain";
 import {
   Badge,
   EmptyState,
-  Field,
-  FormActions,
   FormError,
   Modal,
   PageHeader,
@@ -34,22 +28,15 @@ import {
 export { FinancePage } from "./finance/page";
 
 export function SalesPage() {
-  const { state, createSale, deliverSale } = useDemo();
+  const { state, hydrated, deliverSale } = useDemo();
   const [creating, setCreating] = useState(false);
   const [query, setQuery] = useState("");
-  const [productId, setProductId] = useState("");
-  const [quantity, setQuantity] = useState(1);
   const [error, setError] = useState("");
-  const eligible = state.products.filter(
-    (p) => !p.serialized && p.stock - p.reserved > 0,
-  );
+  const openSale = () => { setError(""); setCreating(true); };
+  const closeSale = () => setCreating(false);
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).has("nova")) {
-      setCreating(true);
-      setProductId(eligible[0]?.id || "");
-    }
-  }, []);
-  const product = state.products.find((p) => p.id === productId);
+    if (hydrated && new URLSearchParams(window.location.search).has("nova")) openSale();
+  }, [hydrated]);
   const sales = state.sales.filter((s) =>
     matches(
       `${s.number} ${state.customers.find((c) => c.id === s.customerId)?.name}`,
@@ -65,12 +52,8 @@ export function SalesPage() {
         action={
           <button
             className="button button-primary"
-            onClick={() => {
-              setError("");
-              setProductId(eligible[0]?.id || "");
-              setQuantity(1);
-              setCreating(true);
-            }}
+            onClick={openSale}
+            disabled={!hydrated}
           >
             <Plus size={18} />
             Nova venda
@@ -222,89 +205,12 @@ export function SalesPage() {
       </section>
       <FormError message={!creating ? error : ""} />
       <div className="notice notice-info">
-        A nova venda demonstra um item por pedido, com reserva e entrega de
-        produtos sem controle por série. Conferência individual de séries e
-        faturamento serão adicionados depois.
+        Confirme os produtos juntos para reservar. Entrega, recebimento e preparação fiscal têm ações próprias.
+        Produtos com controle individual de série continuam bloqueados neste recorte.
       </div>
-      {creating && (
-        <Modal
-          title="Nova venda"
-          description="Confirme o pedido para reservar a quantidade em estoque."
-          onClose={() => setCreating(false)}
-        >
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (!product) return;
-              const f = new FormData(e.currentTarget);
-              try {
-                createSale({
-                  id: uid(),
-                  number: 0,
-                  customerId: String(f.get("customerId")),
-                  items: [{ productId, quantity, unitPrice: product.price }],
-                  date: TODAY,
-                  status: "confirmed",
-                  total: product.price * quantity,
-                });
-                setCreating(false);
-              } catch (err) {
-                setError((err as Error).message);
-              }
-            }}
-          >
-            <Field label="Cliente *">
-              <select name="customerId" required>
-                {state.customers.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Produto *">
-              <select
-                value={productId}
-                required
-                onChange={(e) => {
-                  setProductId(e.target.value);
-                  setQuantity(1);
-                }}
-              >
-                {!eligible.length && (
-                  <option value="">Nenhum produto disponível</option>
-                )}
-                {eligible.map((p) => (
-                  <option value={p.id} key={p.id}>
-                    {p.name} · {p.stock - p.reserved} disponíveis
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Quantidade *">
-              <input
-                name="quantity"
-                type="number"
-                min="1"
-                step="1"
-                max={product ? product.stock - product.reserved : 0}
-                value={quantity}
-                onChange={(e) => setQuantity(Number(e.target.value))}
-                required
-              />
-            </Field>
-            <div className="amount-highlight">
-              <span>Total do pedido</span>
-              <strong>{money((product?.price || 0) * quantity)}</strong>
-            </div>
-            <FormError message={error} />
-            <FormActions
-              onClose={() => setCreating(false)}
-              label="Confirmar e reservar"
-            />
-          </form>
-        </Modal>
-      )}
+      {creating && <Modal title="Nova venda" description="Confira os produtos e confirme o pedido para reservar suas quantidades." wide onClose={closeSale}>
+        <SaleEditor onSaved={closeSale} onCancel={closeSale} />
+      </Modal>}
     </>
   );
 }

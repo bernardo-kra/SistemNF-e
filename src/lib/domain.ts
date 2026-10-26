@@ -6,6 +6,7 @@ import type {
   ServiceFiscalProfile,
 } from "./fiscal/types";
 import type { FinanceState } from "./finance/types";
+import type { ProductAttributes, PurchasingState } from "./purchases/types";
 export type { FiscalDocument } from "./fiscal/types";
 export type Tone = "neutral" | "info" | "success" | "warning" | "danger";
 export type Stage =
@@ -42,6 +43,10 @@ export interface Product {
   unit: string;
   cost: number;
   price: number;
+  /** Valor ainda não definido para venda; zero interno não representa gratuidade. */
+  pricePending?: boolean;
+  attributes?: ProductAttributes;
+  gtin?: string;
   stock: number;
   reserved: number;
   minimum: number;
@@ -55,6 +60,7 @@ export interface Product {
 export interface Activity {
   label: string;
   date: string;
+  at?: string;
 }
 export interface ServiceOrder {
   id: string;
@@ -86,8 +92,15 @@ export interface Sale {
   date: string;
   total: number;
 }
+/** Cadastro operacional de responsável; não representa identidade de acesso. */
+export interface Technician {
+  id: string;
+  name: string;
+}
 export interface DemoState {
   version: 3;
+  technicians?: Technician[];
+  purchasing?: PurchasingState;
   finance: FinanceState;
   customers: Customer[];
   products: Product[];

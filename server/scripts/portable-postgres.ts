@@ -81,7 +81,8 @@ export async function startPortablePostgres(directory: string, credentials: Loca
   return {
     async stop() {
       if (stopped) return;
-      await run(binary.pg_ctl, ["stop", "-D", dataDir, "-m", "fast", "-w", "-t", "30"], options);
+      // Checkpoint/fsync on the local Windows disk can exceed 30s even on a regular shutdown.
+      await run(binary.pg_ctl, ["stop", "-D", dataDir, "-m", "fast", "-w", "-t", "90"], { ...options, timeout: 120_000 });
       stopped = true;
     },
   };
@@ -100,21 +101,34 @@ export async function loadLocalCredentials() {
   }
 }
 
-export async function createLocalDatabase(admin: Pool, credentials: LocalCredentials, key: string) {
+export async function createLocalDatabase(admin: Pool, credentials: LocalCredentials, key: string,
+  options: { reuse?: boolean; runtimePassword?: string } = {}) {
   const databaseName = `sistem_${key}`;
   const runtimeUser = `sistem_${key}_app`;
-  const password = secret();
+  const password = options.runtimePassword ?? secret();
+  if (typeof password !== "string" || password.length < 32) throw new Error("Credencial interna local inválida.");
   // Names are tool-generated/validated; SQL values are quoted, never sourced from HTTP.
-  await admin.query(`CREATE ROLE ${identifier(runtimeUser)} LOGIN PASSWORD ${literal(password)} NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION`);
-  await admin.query(`CREATE DATABASE ${identifier(databaseName)}`);
+  const role = await admin.query("SELECT rolsuper,rolcreatedb,rolcreaterole FROM pg_roles WHERE rolname=$1", [runtimeUser]);
+  const database = await admin.query("SELECT 1 FROM pg_database WHERE datname=$1", [databaseName]);
+  if (!options.reuse && (role.rowCount || database.rowCount)) throw new Error("O banco ou a role local já existe.");
+  if (role.rowCount && (role.rows[0].rolsuper || role.rows[0].rolcreatedb || role.rows[0].rolcreaterole))
+    throw new Error("A role local existente possui privilégios incompatíveis.");
+  if (!role.rowCount) await admin.query(`CREATE ROLE ${identifier(runtimeUser)} LOGIN PASSWORD ${literal(password)} NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION`);
+  if (!database.rowCount) await admin.query(`CREATE DATABASE ${identifier(databaseName)}`);
   await admin.query(`REVOKE ALL ON DATABASE ${identifier(databaseName)} FROM PUBLIC`);
   await admin.query(`GRANT CONNECT ON DATABASE ${identifier(databaseName)} TO ${identifier(runtimeUser)}`);
   const migrationPool = new Pool({ connectionString: databaseUrl(credentials, databaseName), max: 2 });
-  await migrationPool.query("REVOKE CREATE ON SCHEMA public FROM PUBLIC");
-  await migrationPool.query(`GRANT USAGE ON SCHEMA public TO ${identifier(runtimeUser)}`);
+  try {
+    await migrationPool.query("REVOKE CREATE ON SCHEMA public FROM PUBLIC");
+    await migrationPool.query(`GRANT USAGE ON SCHEMA public TO ${identifier(runtimeUser)}`);
+  } catch (error) { await migrationPool.end(); throw error; }
   const grantRuntime = async () => {
     await migrationPool.query(`GRANT SELECT,INSERT,UPDATE,DELETE ON ALL TABLES IN SCHEMA public TO ${identifier(runtimeUser)}`);
     await migrationPool.query(`GRANT USAGE,SELECT ON ALL SEQUENCES IN SCHEMA public TO ${identifier(runtimeUser)}`);
+    const tables = await migrationPool.query("SELECT to_regclass('public.audit_events') AS audit,to_regclass('public.access_audit_events') AS access_audit,to_regclass('public.schema_migrations') AS migrations");
+    if (tables.rows[0].audit) await migrationPool.query(`REVOKE UPDATE,DELETE ON audit_events FROM ${identifier(runtimeUser)}`);
+    if (tables.rows[0].access_audit) await migrationPool.query(`REVOKE UPDATE,DELETE ON access_audit_events FROM ${identifier(runtimeUser)}`);
+    if (tables.rows[0].migrations) await migrationPool.query(`REVOKE INSERT,UPDATE,DELETE ON schema_migrations FROM ${identifier(runtimeUser)}`);
   };
   return { databaseName, migrationPool, runtimeUser,
     runtimeUrl: databaseUrl(credentials, databaseName, runtimeUser, password), grantRuntime };

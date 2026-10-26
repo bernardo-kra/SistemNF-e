@@ -4,6 +4,10 @@ import { defaultFinance } from "./finance/engine";
 
 export const seed: DemoState = {
   version: 3,
+  technicians: [
+    { id: "technician-ana", name: "Ana Oliveira" },
+    { id: "technician-pedro", name: "Pedro Lima" },
+  ],
   finance: defaultFinance(),
   fiscalProfile: structuredClone(defaultCompanyFiscal),
   serviceFiscal: { ...defaultServiceFiscal },

@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { OrderReceipt, type OrderReceiptSnapshot } from "@/components/order-receipt";
+import { findOrderByCode, orderCode } from "@/lib/order-code";
 import { orderReceived, sourceAgreement } from "@/lib/finance/engine";
 import {
   Plus,
@@ -17,8 +19,16 @@ import {
   ClipboardCheck,
   Pencil,
   ArrowRight,
+  Printer,
+  ScanBarcode,
 } from "lucide-react";
 import { useDemo, newOrder } from "@/lib/demo-store";
+import { techniciansForState } from "@/lib/technicians";
+import {
+  ContextualDialog,
+  CustomerEditor,
+  TechnicianEditor,
+} from "@/components/contextual-catalog";
 import {
   dateLabel,
   matches,
@@ -34,7 +44,6 @@ import {
   Badge,
   EmptyState,
   Field,
-  FormActions,
   FormError,
   Modal,
   PageHeader,
@@ -54,24 +63,60 @@ const nextLabels: Record<Stage, string> = {
 };
 
 export function OrdersPage() {
-  const { state, saveOrder, advanceOrder } = useDemo();
+  const { state, saveOrder, advanceOrder, notify } = useDemo();
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
   const [editing, setEditing] = useState<ServiceOrder | null>(null);
+  const [editingCustomerId, setEditingCustomerId] = useState("");
+  const [editingTechnician, setEditingTechnician] = useState("Não atribuído");
+  const [contextual, setContextual] = useState<"customer" | "technician" | null>(
+    null,
+  );
   const [action, setAction] = useState<ServiceOrder | null>(null);
   const [error, setError] = useState("");
   const [tab, setTab] = useState("overview");
+  const [readerActive, setReaderActive] = useState(false);
+  const [readerMessage, setReaderMessage] = useState("Leia a folha para abrir diretamente a ordem.");
+  const [allowOutstanding, setAllowOutstanding] = useState(false);
+  const [receipt, setReceipt] = useState<OrderReceiptSnapshot | null>(null);
+  const saving = useRef(false);
+  const advancing = useRef(false);
+  const reading = useRef("");
+  const openEditing = (order: ServiceOrder) => {
+    setError("");
+    saving.current = false;
+    reading.current = "";
+    setEditingCustomerId(order.customerId);
+    setEditingTechnician(order.technician);
+    setContextual(null);
+    setEditing(order);
+  };
+  const closeEditing = () => {
+    setContextual(null);
+    setEditing(null);
+  };
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.has("os")) setSelected(params.get("os"));
-    if (params.has("nova")) setEditing(newOrder(state.customers[0]?.id || ""));
+    if (params.has("nova")) openEditing(newOrder(state.customers[0]?.id || ""));
   }, []);
   const selectedOrder = state.orders.find((o) => o.id === selected);
   const receivedTotal = selectedOrder ? orderReceived(state, selectedOrder) : 0;
+  const outstanding = selectedOrder ? Math.max(0, sumOrder(selectedOrder) - receivedTotal) : 0;
   const paymentAgreement =
     selectedOrder &&
     sourceAgreement(state, { type: "order", id: selectedOrder.id });
+  const editingAgreement =
+    editing && sourceAgreement(state, { type: "order", id: editing.id });
+  const technicianNames = [
+    ...new Set([
+      ...techniciansForState(state).map((technician) => technician.name),
+      ...(editingTechnician && editingTechnician !== "Não atribuído"
+        ? [editingTechnician]
+        : []),
+    ]),
+  ];
   const customer =
     selectedOrder &&
     state.customers.find((c) => c.id === selectedOrder.customerId);
@@ -87,18 +132,97 @@ export function OrdersPage() {
           : o.stage === filter)),
   );
   const selectOrder = (id: string) => {
+    setError("");
+    setAction(null);
+    setAllowOutstanding(false);
     setSelected(id);
-    setTab("overview");
-    window.history.replaceState(null, "", `?os=${id}`);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    setTab(state.orders.find((order) => order.id === id)?.stage === "delivered" ? "history" : "overview");
+    window.history.replaceState(null, "", `?os=${encodeURIComponent(id)}`);
+    window.scrollTo({ top: 0, behavior: "auto" });
   };
   const closeDetail = () => {
     setSelected(null);
     window.history.replaceState(null, "", "/ordens/");
   };
 
+  useEffect(() => {
+    advancing.current = false;
+    setAction(null);
+    setAllowOutstanding(false);
+  }, [selectedOrder?.id, selectedOrder?.stage]);
+
+  useEffect(() => {
+    const capture = (event: KeyboardEvent) => {
+      if (event.isComposing || event.ctrlKey || event.metaKey || event.altKey) return;
+      const target = event.target instanceof HTMLElement ? event.target : null;
+      const editable = target?.closest("input, textarea, select, [contenteditable='true']");
+      const fieldValue = editable instanceof HTMLInputElement || editable instanceof HTMLTextAreaElement ? editable.value : "";
+      if (event.key === "Enter" && event.repeat) { event.preventDefault(); return; }
+      if (event.key === "Enter") {
+        const code = reading.current;
+        reading.current = "";
+        const isReference = code.startsWith("SISTEM-OS:") || fieldValue.includes("SISTEM-OS:");
+        if (!isReference) return;
+        // A scanner's Enter must never submit a draft or activate the focused button.
+        event.preventDefault(); event.stopPropagation();
+        if (!readerActive || editable || editing || contextual || receipt || action || document.querySelector("dialog[open]")) return;
+        const order = findOrderByCode(state.orders, code);
+        if (!order) {
+          const message = "OS não encontrada. Confira a folha ou use a busca pelo número.";
+          setReaderMessage(message); notify(message); return;
+        }
+        selectOrder(order.id);
+        setReaderMessage(`OS #${order.number} localizada. Confira o cliente e o equipamento antes de agir.`);
+        return;
+      }
+      if (!readerActive) return;
+      if (event.key === "Escape") { reading.current = ""; return; }
+      if (event.key.length !== 1) return;
+      const next = reading.current + event.key;
+      // Only a reference prefix starts a command; ordinary typing is left alone.
+      if ("SISTEM-OS:".startsWith(next) || next.startsWith("SISTEM-OS:")) reading.current = next.slice(0, 128);
+      else reading.current = event.key === "S" ? "S" : "";
+    };
+    document.addEventListener("keydown", capture, true);
+    return () => document.removeEventListener("keydown", capture, true);
+  }, [readerActive, editing, contextual, receipt, action, state.orders, notify]);
+
+  const printOrder = (order: ServiceOrder) => {
+    try {
+      orderCode(order);
+      setReceipt({
+        order: structuredClone(order),
+        customer: structuredClone(state.customers.find((item) => item.id === order.customerId)),
+        company: state.fiscalProfile.legalName || "Sistem",
+        at: new Date().toISOString(),
+      });
+    } catch (failure) { setError((failure as Error).message); }
+  };
+  const moveOrder = (order: ServiceOrder, note = "") => {
+    if (advancing.current) return;
+    advancing.current = true;
+    setError("");
+    try { advanceOrder(order.id, note, order.stage, allowOutstanding); setAction(null); }
+    catch (failure) { advancing.current = false; setError((failure as Error).message); }
+  };
+  const startAction = (order: ServiceOrder) => {
+    setError("");
+    if (["awaiting_approval", "quality_check"].includes(order.stage)) setAction(order);
+    else moveOrder(order);
+  };
+
   return (
     <>
+      <div className="order-scan-panel">
+        <div><strong><ScanBarcode size={18} /> Leitor de ordens de serviço</strong>
+          <p className="order-scan-status" aria-live="polite">{readerActive
+            ? editing || action || receipt ? "Conclua o formulário ou comprovante para voltar ao balcão." : readerMessage
+            : "Ative uma vez para ler os códigos das folhas neste balcão."}</p>
+        </div>
+        <button className="button button-secondary" onClick={(event) => {
+          reading.current = ""; setReaderActive(!readerActive); event.currentTarget.blur();
+        }}>{readerActive ? "Desativar leitor de OS" : "Ativar leitor de OS"}</button>
+      </div>
       {selectedOrder ? (
         <>
           <button className="back-link" onClick={closeDetail}>
@@ -111,6 +235,9 @@ export function OrdersPage() {
             description={`${customer?.name || "Cliente"} · ${selectedOrder.equipment}`}
             action={
               <>
+                <button className="button button-secondary" onClick={() => printOrder(selectedOrder)}>
+                  <Printer size={16} /> Imprimir comprovante
+                </button>
                 <Link
                   className="button button-secondary"
                   href={`/fiscal/?source=order:${selectedOrder.id}`}
@@ -120,25 +247,19 @@ export function OrdersPage() {
                 <button
                   className="button button-secondary"
                   onClick={() => {
-                    setError("");
-                    setEditing(selectedOrder);
+                    openEditing(selectedOrder);
                   }}
                   disabled={selectedOrder.approved}
                 >
                   <Pencil size={16} />
                   Editar diagnóstico
                 </button>
-                <button
+                {selectedOrder.stage !== "ready_for_pickup" && <button
                   className="button button-primary"
                   disabled={selectedOrder.stage === "delivered"}
-                  onClick={() => {
-                    setError("");
-                    setAction(selectedOrder);
-                  }}
-                >
-                  {nextLabels[selectedOrder.stage]}
-                  <ArrowRight size={17} />
-                </button>
+                  onClick={(event) => { if (event.detail <= 1) startAction(selectedOrder); }}
+                  onKeyDown={(event) => { if (event.repeat && ["Enter", " "].includes(event.key)) event.preventDefault(); }}
+                >{nextLabels[selectedOrder.stage]}<ArrowRight size={17} /></button>}
               </>
             }
           />
@@ -155,6 +276,66 @@ export function OrdersPage() {
               {selectedOrder.technician}
             </span>
           </div>
+          <FormError message={action ? "" : error} />
+          {selectedOrder.stage === "ready_for_pickup" && (
+            <section className="quick-action-panel" aria-label="Retirada do equipamento">
+              <h2>Conferir e entregar</h2>
+              <p><strong>{customer?.name || "Cliente não localizado"}</strong> · {selectedOrder.equipment}
+                {selectedOrder.serial && ` · ${selectedOrder.serial}`}</p>
+              <p>Acessórios: {selectedOrder.accessories || "Nenhum informado"}. Ao confirmar, você declara que conferiu o equipamento, os acessórios e a identidade autorizada para retirada.</p>
+              {!selectedOrder.tested && <div className="notice notice-warning">Testes pendentes: conclua o checklist antes da entrega.</div>}
+              {!selectedOrder.approved && <div className="notice notice-warning">Aprovação pendente: o orçamento precisa estar autorizado antes da entrega.</div>}
+              {outstanding > 0 && <div className="notice notice-warning">
+                <div><strong>Saldo pendente: {money(outstanding)}</strong><p>A entrega não registra pagamento nem quita o saldo.</p>
+                  <label className="checkbox-field"><input type="checkbox" checked={allowOutstanding}
+                    onChange={(event) => setAllowOutstanding(event.target.checked)} />Confirmo a entrega com saldo pendente nesta demonstração</label>
+                </div>
+              </div>}
+              {action?.id !== selectedOrder.id && <div className="form-actions">
+                <button className="button button-secondary" onClick={() => { setError(""); setAction(selectedOrder); }}>
+                  Outra pessoa vai retirar
+                </button>
+                <button className="button button-primary"
+                  disabled={!customer || !selectedOrder.tested || !selectedOrder.approved || (outstanding > 0 && !allowOutstanding)}
+                  onClick={(event) => { if (event.detail <= 1 && customer) moveOrder(selectedOrder, customer.name); }}
+                  onKeyDown={(event) => { if (event.repeat && ["Enter", " "].includes(event.key)) event.preventDefault(); }}>
+                  Confirmar entrega a {customer?.name || "cliente"}
+                </button>
+              </div>}
+            </section>
+          )}
+          {action && action.id === selectedOrder.id && action.stage === selectedOrder.stage && (
+            <section className="quick-action-panel" aria-label={nextLabels[action.stage]}>
+              <h2>{action.stage === "ready_for_pickup" ? "Retirada por pessoa autorizada" : nextLabels[action.stage]}</h2>
+              {readerActive && <p className="form-note">Leitor de OS suspenso durante esta conferência.</p>}
+              <form className="quick-action-form" onSubmit={(event) => {
+                event.preventDefault();
+                const data = new FormData(event.currentTarget);
+                moveOrder(action, String(data.get("approval") || data.get("recipient") || ""));
+              }}>
+                {action.stage === "awaiting_approval" ? <>
+                  <div className="notice notice-info">Orçamento: <strong>{money(sumOrder(action))}</strong>. Registre uma aprovação recebida fora da plataforma; nenhuma mensagem será enviada.</div>
+                  <Field label="Responsável e canal da aprovação *"><textarea name="approval" required maxLength={300}
+                    placeholder="Ex.: Mariana Costa, por telefone, autorizou o orçamento." rows={3} autoFocus /></Field>
+                  <label className="checkbox-field"><input type="checkbox" required />Confirmo que o cliente autorizou os valores e o serviço.</label>
+                </> : action.stage === "quality_check" ? <div className="checklist">
+                  {["Funcionamento testado após o reparo", "Equipamento e acessórios conferidos", "Resultado do serviço aprovado pelo técnico"].map((item) => (
+                    <label className="checkbox-field" key={item}><input type="checkbox" required />{item}</label>
+                  ))}
+                </div> : <>
+                  <Field label="Nome do responsável pela retirada *"><input required name="recipient" maxLength={100} autoFocus /></Field>
+                  <label className="checkbox-field"><input required type="checkbox" />Equipamento e acessórios foram conferidos e entregues.</label>
+                </>}
+                <FormError message={error} />
+                <div className="form-actions">
+                  <button className="button button-secondary" type="button" onClick={() => { setAction(null); setError(""); }}>Cancelar</button>
+                  <button className="button button-primary" type="submit"
+                    disabled={action.stage === "ready_for_pickup" && (!selectedOrder.approved || !selectedOrder.tested || (outstanding > 0 && !allowOutstanding))}
+                    onClick={(event) => { if (event.detail > 1) event.preventDefault(); }}>Confirmar etapa</button>
+                </div>
+              </form>
+            </section>
+          )}
           {selectedOrder.stage === "awaiting_approval" && (
             <div className="notice notice-warning">
               <Clock3 size={19} />
@@ -395,8 +576,7 @@ export function OrdersPage() {
               <button
                 className="button button-primary"
                 onClick={() => {
-                  setError("");
-                  setEditing(newOrder(state.customers[0]?.id || ""));
+                  openEditing(newOrder(state.customers[0]?.id || ""));
                 }}
               >
                 <Plus size={18} />
@@ -550,11 +730,12 @@ export function OrdersPage() {
           }
           description="Registre o equipamento e o problema relatado pelo cliente."
           wide
-          onClose={() => setEditing(null)}
+          onClose={closeEditing}
         >
           <form
             onSubmit={(e) => {
               e.preventDefault();
+              if (saving.current) return;
               const f = new FormData(e.currentTarget);
               try {
                 if (
@@ -562,46 +743,88 @@ export function OrdersPage() {
                   !String(f.get("issue")).trim()
                 )
                   throw new Error("Preencha equipamento e problema relatado.");
-                saveOrder({
+                saving.current = true;
+                const saved = saveOrder({
                   ...editing,
-                  customerId: String(f.get("customerId")),
+                  customerId: editingCustomerId,
                   equipment: String(f.get("equipment")).trim(),
                   serial: String(f.get("serial")).trim(),
                   accessories: String(f.get("accessories")).trim(),
                   issue: String(f.get("issue")).trim(),
                   diagnosis: String(f.get("diagnosis")).trim(),
                   due: String(f.get("due")),
-                  technician: String(f.get("technician")),
+                  technician: editingTechnician,
                   parts: Math.round(Number(f.get("parts")) * 100),
                   labor: Math.round(Number(f.get("labor")) * 100),
                 });
-                setEditing(null);
+                const submitter = (e.nativeEvent as SubmitEvent).submitter;
+                closeEditing();
+                if (submitter instanceof HTMLButtonElement && submitter.value === "print") {
+                  selectOrder(saved.id);
+                  printOrder(saved);
+                }
               } catch (err) {
+                saving.current = false;
                 setError((err as Error).message);
               }
             }}
           >
+            {readerActive && <p className="form-note">Leitor de OS suspenso enquanto você preenche este formulário. A leitura não salva nem fecha seu rascunho.</p>}
             <div className="form-grid">
-              <Field label="Cliente *">
-                <select
-                  name="customerId"
-                  required
-                  defaultValue={editing.customerId}
+              <div className="contextual-field">
+                <Field label="Cliente *">
+                  <select
+                    name="customerId"
+                    required
+                    value={editingCustomerId}
+                    onChange={(event) => setEditingCustomerId(event.target.value)}
+                    disabled={Boolean(editingAgreement)}
+                  >
+                    {!editingCustomerId && (
+                      <option value="">Selecione um cliente</option>
+                    )}
+                    {state.customers.map((c) => (
+                      <option value={c.id} key={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <button
+                  type="button"
+                  className="button button-small button-secondary contextual-create"
+                  onClick={() => setContextual("customer")}
+                  disabled={Boolean(editingAgreement)}
                 >
-                  {state.customers.map((c) => (
-                    <option value={c.id} key={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <Field label="Técnico responsável">
-                <select name="technician" defaultValue={editing.technician}>
-                  <option>Não atribuído</option>
-                  <option>Ana Oliveira</option>
-                  <option>Pedro Lima</option>
-                </select>
-              </Field>
+                  <Plus size={14} /> Cadastrar cliente
+                </button>
+                {editingAgreement && (
+                  <small>
+                    O cliente está preservado pelo acordo financeiro desta OS.
+                  </small>
+                )}
+              </div>
+              <div className="contextual-field">
+                <Field label="Técnico responsável">
+                  <select
+                    name="technician"
+                    value={editingTechnician}
+                    onChange={(event) => setEditingTechnician(event.target.value)}
+                  >
+                    <option>Não atribuído</option>
+                    {technicianNames.map((name) => (
+                      <option key={name}>{name}</option>
+                    ))}
+                  </select>
+                </Field>
+                <button
+                  type="button"
+                  className="button button-small button-secondary contextual-create"
+                  onClick={() => setContextual("technician")}
+                >
+                  <Plus size={14} /> Cadastrar técnico
+                </button>
+              </div>
               <Field label="Equipamento / marca e modelo *" className="full">
                 <input
                   name="equipment"
@@ -673,97 +896,49 @@ export function OrdersPage() {
               </Field>
             </div>
             <FormError message={error} />
-            <FormActions
-              onClose={() => setEditing(null)}
-              label={
-                editing.number ? "Salvar alterações" : "Abrir ordem de serviço"
-              }
-            />
+            <div className="form-actions">
+              <button className="button button-secondary" type="button" onClick={closeEditing}>Cancelar</button>
+              <button className="button button-secondary" type="submit">
+                {editing.number ? "Salvar alterações" : "Abrir ordem de serviço"}
+              </button>
+              <button className="button button-primary" type="submit" name="intent" value="print">
+                <Printer size={16} /> Salvar e imprimir
+              </button>
+            </div>
           </form>
+          {contextual === "customer" && (
+            <ContextualDialog
+              title="Novo cliente"
+              description="Cadastre o cliente para continuar preenchendo esta OS."
+              onClose={() => setContextual(null)}
+            >
+              <CustomerEditor
+                onSaved={(saved) => {
+                  setEditingCustomerId(saved.id);
+                  setContextual(null);
+                }}
+                onCancel={() => setContextual(null)}
+              />
+            </ContextualDialog>
+          )}
+          {contextual === "technician" && (
+            <ContextualDialog
+              title="Novo técnico"
+              description="Cadastro operacional para atribuir o serviço, sem criar conta de acesso."
+              onClose={() => setContextual(null)}
+            >
+              <TechnicianEditor
+                onSaved={(saved) => {
+                  setEditingTechnician(saved.name);
+                  setContextual(null);
+                }}
+                onCancel={() => setContextual(null)}
+              />
+            </ContextualDialog>
+          )}
         </Modal>
       )}
-      {action && (
-        <Modal
-          title={nextLabels[action.stage]}
-          description={`OS #${action.number} · ${action.equipment}`}
-          onClose={() => setAction(null)}
-        >
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              const f = new FormData(e.currentTarget);
-              try {
-                advanceOrder(
-                  action.id,
-                  String(f.get("approval") || f.get("recipient") || ""),
-                );
-                setAction(null);
-              } catch (err) {
-                setError((err as Error).message);
-              }
-            }}
-          >
-            {action.stage === "awaiting_approval" ? (
-              <>
-                <div className="notice notice-info">
-                  Orçamento: <strong>{money(sumOrder(action))}</strong>. Este
-                  registro indica uma aprovação recebida fora da plataforma;
-                  nenhuma mensagem será enviada.
-                </div>
-                <Field label="Responsável e canal da aprovação *">
-                  <textarea
-                    name="approval"
-                    required
-                    maxLength={300}
-                    placeholder="Ex.: Mariana Costa, por telefone, autorizou o orçamento."
-                    rows={3}
-                  />
-                </Field>
-                <label className="checkbox-field">
-                  <input type="checkbox" required />
-                  Confirmo que o cliente autorizou os valores e o serviço.
-                </label>
-              </>
-            ) : action.stage === "quality_check" ? (
-              <div className="checklist">
-                {[
-                  "Funcionamento testado após o reparo",
-                  "Equipamento e acessórios conferidos",
-                  "Resultado do serviço aprovado pelo técnico",
-                ].map((item) => (
-                  <label className="checkbox-field" key={item}>
-                    <input type="checkbox" required />
-                    {item}
-                  </label>
-                ))}
-              </div>
-            ) : action.stage === "ready_for_pickup" ? (
-              <>
-                <p className="body-copy">
-                  Confirme a retirada do equipamento e de todos os acessórios.
-                </p>
-                <Field label="Nome do responsável pela retirada *">
-                  <input required name="recipient" maxLength={100} />
-                </Field>
-                <label className="checkbox-field">
-                  <input required type="checkbox" />
-                  Equipamento e acessórios foram conferidos e entregues.
-                </label>
-              </>
-            ) : (
-              <p className="body-copy">
-                Esta ação avança o atendimento para a próxima etapa. O estado
-                financeiro e a emissão fiscal permanecem separados.
-              </p>
-            )}
-            <FormError message={error} />
-            <FormActions
-              onClose={() => setAction(null)}
-              label="Confirmar etapa"
-            />
-          </form>
-        </Modal>
-      )}
+      {receipt && <OrderReceipt snapshot={receipt} onClose={() => setReceipt(null)} />}
     </>
   );
 }

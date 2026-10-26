@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { DemoProvider } from "@/lib/demo-store";
 import "./tokens.css";
 import "./globals.css";
 
@@ -16,7 +15,7 @@ export default function RootLayout({
   return (
     <html lang="pt-BR" data-scroll-behavior="smooth">
       <body>
-        <DemoProvider>{children}</DemoProvider>
+        {children}
       </body>
     </html>
   );

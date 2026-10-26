@@ -12,6 +12,12 @@ import type {
 } from "./domain";
 import { TODAY, sumOrder } from "./domain";
 import { restoreDemoState } from "./demo-persistence";
+import type { Technician } from "./domain";
+import { technicianNameKey, techniciansForState } from "./technicians";
+import { applyPurchase } from "./purchases/engine";
+import type { PurchaseInput } from "./purchases/types";
+import { applySaleConfirmation, applySaleDelivery } from "./sales-engine";
+import { applyProductPrices, type ProductPriceChange } from "./catalog-pricing";
 import {
   instrumentOperation,
   isDiagnosticOperation,
@@ -24,6 +30,7 @@ import {
   sourceAgreement,
   openCashShift as openShift,
   closeCashShift as closeShift,
+  orderReceived,
 } from "./finance/engine";
 import type {
   AgreementInput,
@@ -72,8 +79,10 @@ type Context = {
   notify: (message: string) => void;
   saveCustomer: (customer: Customer) => void;
   saveProduct: (product: Product) => void;
-  saveOrder: (order: ServiceOrder) => void;
-  advanceOrder: (id: string, note?: string) => void;
+  setProductPrices: (changes: ProductPriceChange[]) => void;
+  saveTechnician: (technician: Technician) => Technician;
+  saveOrder: (order: ServiceOrder) => ServiceOrder;
+  advanceOrder: (id: string, note?: string, expectedStage?: Stage, allowOutstanding?: boolean) => void;
   createPaymentAgreement: (input: AgreementInput) => string;
   registerInstallmentPayment: (input: PaymentInput) => string;
   openCashShift: (input: OpenShiftInput) => string;
@@ -82,6 +91,7 @@ type Context = {
   createSale: (sale: Sale) => void;
   deliverSale: (id: string) => void;
   importProducts: (key: string, products: Product[]) => void;
+  confirmPurchase: (input: PurchaseInput) => void;
   saveFiscalProfile: (profile: CompanyFiscalProfile) => void;
   saveServiceFiscal: (profile: ServiceFiscalProfile) => void;
   prepareFiscal: (source: FiscalSource, model: FiscalModel) => string;
@@ -95,6 +105,7 @@ const copySeed = () => structuredClone(seed);
 export function DemoProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<DemoState>(copySeed);
   const current = useRef(state);
+  const durablySaved = useRef<DemoState | null>(null);
   const [hydrated, setHydrated] = useState(false);
   const [storageAvailable, setStorageAvailable] = useState(true);
   const [message, setMessage] = useState("");
@@ -131,6 +142,7 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
   }, []);
   useEffect(() => {
     if (!hydrated || recoveryBlocked.current) return;
+    if (durablySaved.current === state) return;
     try {
       window.localStorage.setItem(KEY, JSON.stringify(state));
       setStorageAvailable(true);
@@ -171,14 +183,31 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
       window.removeEventListener("unhandledrejection", onRejection);
     };
   }, []);
-  const commit = (update: (state: DemoState) => DemoState) => {
+  const commit = (update: (state: DemoState) => DemoState, durable = false): DemoState => {
     if (recoveryBlocked.current)
       throw new Error(
         "Os dados originais estão preservados. Resolva a recuperação nas configurações antes de gravar alterações.",
       );
     const next = update(current.current);
+    if (durable) {
+      if (!hydrated)
+        throw new Error("Aguarde a recuperação dos dados locais antes de confirmar.");
+      try {
+        window.localStorage.setItem(KEY, JSON.stringify(next));
+      } catch {
+        setStorageAvailable(false);
+        const incident = recordDiagnostic("storageWrite");
+        throw new Error(withSupportCode(
+          "Não foi possível gravar a operação neste navegador. Nenhuma alteração foi confirmada; o rascunho foi preservado para tentar novamente.",
+          incident?.id,
+        ));
+      }
+      durablySaved.current = next;
+      setStorageAvailable(true);
+    }
     current.current = next;
     setState(next);
+    return next;
   };
   const value: Context = {
     state,
@@ -234,11 +263,32 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
             ? s.products.map((p) => (p.id === product.id ? product : p))
             : [product, ...s.products],
         };
-      });
+      }, true);
       notify("Produto salvo na demonstração.");
     },
-    saveOrder(order) {
+    setProductPrices(changes) {
+      commit((s) => applyProductPrices(s, changes), true);
+      notify("Preços gravados neste navegador. Estoque e operações anteriores preservados.");
+    },
+    saveTechnician(technician) {
+      const name = technician.name.trim().replace(/\s+/g, " ");
+      if (!technician.id.trim() || !name || name.length > 100 ||
+        technicianNameKey(name) === technicianNameKey("Não atribuído")) {
+        throw new Error("Informe o nome do técnico. Não atribuído é uma opção de ausência de responsável.");
+      }
+      const saved = { id: technician.id, name };
       commit((s) => {
+        const technicians = techniciansForState(s);
+        if (technicians.some((item) => item.id === saved.id || technicianNameKey(item.name) === technicianNameKey(name))) {
+          throw new Error("Já existe um técnico com esse nome. Selecione o cadastro existente.");
+        }
+        return { ...s, technicians: [...technicians, saved] };
+      });
+      notify("Técnico cadastrado para os atendimentos. Este cadastro não concede acesso ao sistema.");
+      return saved;
+    },
+    saveOrder(order) {
+      const saved = commit((s) => {
         const existing = s.orders.find((o) => o.id === order.id);
         if (
           existing &&
@@ -259,10 +309,11 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
           };
         const number = Math.max(1042, ...s.orders.map((o) => o.number)) + 1;
         return { ...s, orders: [{ ...order, number }, ...s.orders] };
-      });
+      }, true);
       notify("Ordem de serviço salva.");
+      return saved.orders.find((item) => item.id === order.id)!;
     },
-    advanceOrder(id, note) {
+    advanceOrder(id, note, expectedStage, allowOutstanding) {
       const nextStages: Record<Stage, Stage> = {
         received: "diagnosing",
         diagnosing: "awaiting_approval",
@@ -281,10 +332,18 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
         ready_for_pickup: `Equipamento e acessórios entregues a ${note || "responsável"}`,
         delivered: "Atendimento concluído",
       };
+      const activeOrder = current.current.orders.find((order) => order.id === id);
+      if (!activeOrder) throw new Error("Esta ordem não está disponível neste navegador.");
+      const at = new Date().toISOString();
+      const date = new Intl.DateTimeFormat("pt-BR", {
+        timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short",
+      }).format(new Date(at));
       commit((s) => ({
         ...s,
         orders: s.orders.map((o) => {
           if (o.id !== id) return o;
+          if (expectedStage !== undefined && o.stage !== expectedStage)
+            throw new Error("A etapa da OS mudou. Confira a situação atual antes de confirmar outra ação.");
           if (o.stage === "delivered")
             throw new Error("Esta ordem já foi entregue.");
           if (
@@ -302,18 +361,24 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
             throw new Error(
               "Informe o responsável pela retirada do equipamento.",
             );
+          if (o.stage === "ready_for_pickup") {
+            if (!o.approved || !o.tested)
+              throw new Error("A aprovação e os testes precisam estar concluídos antes da entrega.");
+            if (sumOrder(o) - orderReceived(s, o) > 0 && !allowOutstanding)
+              throw new Error("Confira e aceite explicitamente a entrega com saldo pendente nesta demonstração.");
+          }
           return {
             ...o,
             stage: nextStages[o.stage],
             approved: o.approved || o.stage === "awaiting_approval",
             tested: o.tested || o.stage === "quality_check",
             history: [
-              { label: labels[o.stage], date: "Agora · demonstração" },
+              { label: labels[o.stage], date, at },
               ...o.history,
             ],
           };
         }),
-      }));
+      }), true);
       notify("Etapa da ordem atualizada.");
     },
     createPaymentAgreement(input) {
@@ -369,66 +434,13 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
       notify("Entrada manual de estoque registrada.");
     },
     createSale(sale) {
-      commit((s) => {
-        for (const item of sale.items) {
-          const product = s.products.find((p) => p.id === item.productId);
-          if (
-            !product ||
-            !Number.isSafeInteger(item.quantity) ||
-            item.quantity <= 0 ||
-            product.stock - product.reserved < item.quantity
-          )
-            throw new Error(
-              "Estoque disponível insuficiente. Revise os itens.",
-            );
-        }
-        return {
-          ...s,
-          sales: [
-            {
-              ...sale,
-              number: Math.max(401, ...s.sales.map((x) => x.number)) + 1,
-            },
-            ...s.sales,
-          ],
-          products: s.products.map((p) => ({
-            ...p,
-            reserved:
-              p.reserved +
-              sale.items
-                .filter((i) => i.productId === p.id)
-                .reduce((q, i) => q + i.quantity, 0),
-          })),
-        };
-      });
+      commit((s) => applySaleConfirmation(s, sale), true);
       notify(
         "Pedido confirmado e quantidade reservada. Nenhuma nota fiscal foi emitida.",
       );
     },
     deliverSale(id) {
-      commit((s) => {
-        const sale = s.sales.find((sale) => sale.id === id);
-        if (!sale || sale.status === "delivered")
-          throw new Error(
-            "Este pedido já foi entregue ou não está disponível.",
-          );
-        return {
-          ...s,
-          sales: s.sales.map((x) =>
-            x.id === id ? { ...x, status: "delivered" } : x,
-          ),
-          products: s.products.map((p) => {
-            const quantity = sale.items
-              .filter((i) => i.productId === p.id)
-              .reduce((q, i) => q + i.quantity, 0);
-            return {
-              ...p,
-              stock: p.stock - quantity,
-              reserved: p.reserved - quantity,
-            };
-          }),
-        };
-      });
+      commit((s) => applySaleDelivery(s, id), true);
       notify("Entrega registrada. Estoque atualizado uma única vez.");
     },
     importProducts(key, products) {
@@ -456,6 +468,12 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
       notify(
         "Importação concluída. Os cadastros foram criados sem alterar o estoque.",
       );
+    },
+    confirmPurchase(input) {
+      commit((s) => applyPurchase(s, input), true);
+      notify(input.receive
+        ? "Importação concluída. O recebimento foi gravado neste navegador, sem gerar pagamentos."
+        : "Importação concluída. Cadastros e vínculos gravados sem alterar o estoque.");
     },
     saveFiscalProfile(profile) {
       if (profile.cnpj && !isValidCnpj(profile.cnpj))

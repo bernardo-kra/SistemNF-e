@@ -7,9 +7,9 @@ export type DiagnosticLevel = "warning" | "error";
 export type DiagnosticCode = "COMMAND_FAILED" | "STORAGE_READ_FAILED" | "STORAGE_WRITE_FAILED" | "RUNTIME_ERROR" | "UNHANDLED_REJECTION";
 export type DiagnosticModule = "customers" | "products" | "orders" | "finance" | "stock" | "sales" | "imports" | "fiscal" | "settings" | "storage" | "runtime";
 export type DiagnosticOperation =
-  | "saveCustomer" | "saveProduct" | "saveOrder" | "advanceOrder"
+  | "saveCustomer" | "saveProduct" | "setProductPrices" | "saveTechnician" | "saveOrder" | "advanceOrder"
   | "createPaymentAgreement" | "registerInstallmentPayment" | "openCashShift" | "closeCashShift"
-  | "receiveStock" | "createSale" | "deliverSale" | "importProducts"
+  | "receiveStock" | "createSale" | "deliverSale" | "importProducts" | "confirmPurchase"
   | "saveFiscalProfile" | "saveServiceFiscal" | "prepareFiscal" | "fiscalAction" | "processFiscal" | "reset"
   | "storageRead" | "storageWrite" | "runtimeError" | "unhandledRejection";
 
@@ -49,9 +49,9 @@ export const moduleLabels: Record<DiagnosticModule, string> = {
   storage: "Armazenamento local", runtime: "Aplicação",
 };
 export const operationLabels: Record<DiagnosticOperation, string> = {
-  saveCustomer: "Salvar cliente", saveProduct: "Salvar produto", saveOrder: "Salvar OS", advanceOrder: "Avançar OS",
+  saveCustomer: "Salvar cliente", saveProduct: "Salvar produto", setProductPrices: "Definir preços em lote", saveTechnician: "Cadastrar técnico", saveOrder: "Salvar OS", advanceOrder: "Avançar OS",
   createPaymentAgreement: "Criar acordo", registerInstallmentPayment: "Receber parcela", openCashShift: "Abrir caixa", closeCashShift: "Fechar caixa",
-  receiveStock: "Registrar entrada", createSale: "Criar venda", deliverSale: "Entregar venda", importProducts: "Importar produtos",
+  receiveStock: "Registrar entrada", createSale: "Criar venda", deliverSale: "Entregar venda", importProducts: "Importar produtos", confirmPurchase: "Confirmar compra local",
   saveFiscalProfile: "Salvar emitente", saveServiceFiscal: "Salvar serviço fiscal", prepareFiscal: "Preparar documento", fiscalAction: "Alterar documento",
   processFiscal: "Processar simulação fiscal", reset: "Restaurar exemplos", storageRead: "Recuperar dados", storageWrite: "Gravar dados",
   runtimeError: "Erro da aplicação", unhandledRejection: "Rejeição não tratada",
@@ -66,9 +66,9 @@ export const diagnosticCatalog: Record<DiagnosticCode, { title: string; descript
 type OperationMetadata = { module: DiagnosticModule; code: DiagnosticCode; level: DiagnosticLevel };
 const command = (module: DiagnosticModule): OperationMetadata => ({ module, code: "COMMAND_FAILED", level: "warning" });
 export const operationCatalog: Record<DiagnosticOperation, OperationMetadata> = {
-  saveCustomer: command("customers"), saveProduct: command("products"), saveOrder: command("orders"), advanceOrder: command("orders"),
+  saveCustomer: command("customers"), saveProduct: command("products"), setProductPrices: command("products"), saveTechnician: command("orders"), saveOrder: command("orders"), advanceOrder: command("orders"),
   createPaymentAgreement: command("finance"), registerInstallmentPayment: command("finance"), openCashShift: command("finance"), closeCashShift: command("finance"),
-  receiveStock: command("stock"), createSale: command("sales"), deliverSale: command("sales"), importProducts: command("imports"),
+  receiveStock: command("stock"), createSale: command("sales"), deliverSale: command("sales"), importProducts: command("imports"), confirmPurchase: command("imports"),
   saveFiscalProfile: command("fiscal"), saveServiceFiscal: command("fiscal"), prepareFiscal: command("fiscal"), fiscalAction: command("fiscal"), processFiscal: command("fiscal"), reset: command("settings"),
   storageRead: { module: "storage", code: "STORAGE_READ_FAILED", level: "error" },
   storageWrite: { module: "storage", code: "STORAGE_WRITE_FAILED", level: "error" },

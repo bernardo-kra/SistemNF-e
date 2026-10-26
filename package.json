@@ -10,13 +10,15 @@
     "test": "node --test checks/static-export.test.mjs && playwright test"
   },
   "dependencies": {
+    "jsbarcode": "3.12.3",
+    "lucide-react": "1.58.0",
     "next": "16.4.2",
     "react": "19.3.1",
-    "react-dom": "19.3.1",
-    "lucide-react": "1.58.0"
+    "react-dom": "19.3.1"
   },
   "devDependencies": {
     "@playwright/test": "latest",
+    "@types/jsbarcode": "3.11.4",
     "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",
