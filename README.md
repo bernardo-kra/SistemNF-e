@@ -2,6 +2,8 @@
 
 Next.js 16.4.2, React 19.3.1, TypeScript e CSS. Interface em português para uma loja de eletrônicos com assistência técnica.
 
+**Homologação online:** [Abrir operação conectada](https://sistemnf-e.onrender.com/operacao/). Publicação validada em 27/10/2026 no Render Free com PostgreSQL Neon e login Better Auth. Dados compartilhados ficam em `/operacao/`; a demonstração da página inicial continua independente. Resultado e limites no [registro da publicação](docs/13-backend-primeiro-recorte.md).
+
 ## Executar no Windows / PowerShell
 
 Na pasta `D:\SistemNF-e\web`:
