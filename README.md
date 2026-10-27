@@ -4,6 +4,8 @@ Next.js 16.4.2, React 19.3.1, TypeScript e CSS. Interface em português para uma
 
 **Homologação online:** [Abrir Sistem](https://sistemnf-e.onrender.com/). A navegação principal usa login real em `/entrar/`, Better Auth e PostgreSQL Neon. Produtos, estoque, clientes, vendas, OS, compras, financeiro e equipe compartilham sessão e empresa. `/operacao/` redireciona para Produtos. A demonstração fica explicitamente em `/demo/`; módulos sem backend mostram `Em preparação`. Estado e evidências da unificação no [registro UNI](docs/15-auditoria-acessos-e-filtros.md).
 
+Publicação UNI validada em HTTPS em 27/10/2026, código `01cb489`, no Render Free: login, oito módulos, navegação, menu móvel e logout aprovados. Antes de publicar: 269 testes de navegador, seis checks, tipos/build e teste real com Neon em bancos QA isolados aprovados.
+
 ## Executar no Windows / PowerShell
 
 Na pasta `D:\SistemNF-e\web`:

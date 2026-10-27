@@ -1,5 +1,13 @@
 # Primeiro recorte do backend
 
+## UNI publicado — navegação e login únicos — 27/10/2026
+
+**Estado atual:** [Abrir Sistem](https://sistemnf-e.onrender.com/) usa a navegação principal conectada e o único login em `/entrar/`. Commit da implementação `01cb489`, deploy `dep-dbgelfrl550s73bsa9dg` confirmado `live` no serviço existente, plano `free`. A publicação foi autorizada pelo usuário após concluir o código. Sem novo serviço, alterações de credenciais ou migrações nesta etapa. `/operacao/` virou compatibilidade para Produtos; demonstração explícita em `/demo/`.
+
+Chrome real em HTTPS aprovou prontidão 200, login/cookie Secure/HttpOnly/SameSite=Lax, oito áreas com consultas 200 (clientes, produtos, estoque, vendas, OS, compras, financeiro e equipe), sessão após reload, menu 390px, alias antigo, logout com consulta anônima 401 e demonstração sem nova consulta de identidade. Navegar entre os oito módulos não gerou novo documento nem consulta de identidade; uma inicial e uma após autenticar. Nenhuma escrita de negócio foi feita na empresa real. Evidências privadas: `server/.local/validation/unified-online-result.json`, `unified-online-home.png` e `unified-online-mobile.png`. Deploy terminou com código 0. Portas locais 3000/4000 encerradas.
+
+Verificação anterior à publicação: seis checks Node, 269/269 cenários Playwright, tipos web/servidor, build completo e smoke compilado com Neon em bancos QA isolados aprovados. Revisão independente, TDD, ajustes justificados dos testes e limites estão no [registro UNI](15-auditoria-acessos-e-filtros.md). Fiscal, relatórios completos, parceiros e paridade de impressão/leitor da OS conectada continuam pendentes. Os registros seguintes descrevem publicações e decisões anteriores.
+
 ## Neon e homologação no Render — 27/10/2026
 
 **Publicação concluída e validada em HTTPS:** [Operação conectada](https://sistemnf-e.onrender.com/operacao/), serviço existente no plano Free, código `d3f36cb` (deploy `dep-dbgbe459fdbs73daqusg`). Código e correção enviados ao GitHub sem force push. BkSolutions e gestor informados pelo usuário preparados no banco primário; a senha inicial está em arquivo privado ignorado pelo Git e não foi publicada. Nenhuma instância da aplicação ou PostgreSQL de testes permaneceu rodando localmente.
