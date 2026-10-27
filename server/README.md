@@ -1,5 +1,7 @@
 # Sistem API
 
+**Navegação unificada (27/10/2026):** acessar `/` para o sistema e `/entrar/` para o único login real. Produtos, estoque, clientes, vendas, OS, compras, financeiro e equipe usam a mesma sessão/empresa e as permissões do servidor. `/operacao/` redireciona para `/produtos/`; `/importar/` para `/compras/`. Demonstração exclusivamente em `/demo/`, sem autenticação fictícia nem importação de seus dados locais. Fiscal, relatórios completos e parceiros ficam identificados como preparação. Evidências no [registro UNI](../docs/15-auditoria-acessos-e-filtros.md).
+
 ## Neon e Render: homologação
 
 Configuração de 27/10/2026: projeto Neon `round-wind-47684434`, branch `production`, mantendo Better Auth do Sistem. O branch tem esse nome na plataforma, mas este ambiente é de homologação. `wandering-bar-87117671` não foi alterado. PostgreSQL usa `pg` e conexões **diretas**, pois o serviço de contas mantém advisory locks de sessão; conexão por pool transacional externo não preservaria esse contrato. Credenciais administrativas ficam somente nas ferramentas de preparação.
@@ -34,7 +36,7 @@ npm.cmd run build
 npm.cmd start
 ```
 
-Abra `http://127.0.0.1:4000/operacao/`. A preparação não redefine senha, não promove conta por coincidência de e-mail e não cria outro gestor ao repetir. Uma falha entre criar identidade e confirmar vínculo pode exigir recuperação administrativa explícita; preserve identidade e registros da tentativa. O modo de desenvolvimento em duas portas (`web` 3000/API 4000) continua disponível. `npm start` local usa loopback; Render usa `0.0.0.0` e `PORT`.
+Abra `http://127.0.0.1:4000/`. A preparação não redefine senha, não promove conta por coincidência de e-mail e não cria outro gestor ao repetir. Uma falha entre criar identidade e confirmar vínculo pode exigir recuperação administrativa explícita; preserve identidade e registros da tentativa. O modo de desenvolvimento em duas portas (`web` 3000/API 4000) continua disponível. `npm start` local usa loopback; Render usa `0.0.0.0` e `PORT`.
 
 No **Web Service Free do Render**, conectado ao repositório da pasta `web`:
 

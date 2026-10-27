@@ -1,9 +1,8 @@
 "use client";
-import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { accessRequest, accessBase, accessDate, AccessError, type AccessIdentity } from "@/lib/access-api";
-import { LoginForm } from "./access-control";
-import { Field, Modal } from "@/components/ui";
+import { useWorkspace } from "./workspace-session";
+import { Field, Modal, PageHeader } from "@/components/ui";
 import { money, stages, type Stage } from "@/lib/domain";
 import { parsePurchaseXml } from "@/lib/purchases/xml";
 import type { PurchaseDocument, PurchaseDecision, PurchasePlan } from "@/lib/purchases/types";
@@ -13,10 +12,10 @@ import styles from "./access-control.module.css";
 import op from "./operations-page.module.css";
 
 type Row = Record<string, any>;
-type Resource = "products" | "stock" | "sales" | "orders" | "purchases" | "finance";
+export type Resource = "products" | "stock" | "sales" | "orders" | "purchases" | "finance";
 type PageData = { tenantId: string; items: Row[]; total: number; limit: number; offset: number };
 type Editor = { kind: "product" | "stock" | "sale" | "order" | "editOrder" | "deliverOrder" | "prices" | "agreement"; row?: Row };
-const labels: Record<Resource, string> = { products: "Produtos", stock: "Estoque", sales: "Vendas", orders: "OS", purchases: "Compras", finance: "Financeiro" };
+const labels: Record<Resource, string> = { products: "Produtos", stock: "Estoque", sales: "Vendas", orders: "Ordens de serviço", purchases: "Compras", finance: "Financeiro" };
 const types: Record<Resource, string> = { products: "product", stock: "stock", sales: "sale", orders: "order", purchases: "purchase", finance: "payment" };
 const resourceRights: Record<Resource, string> = { products: "products.read", stock: "stock.read", sales: "sales.read", orders: "orders.read", purchases: "purchases.read", finance: "finance.read" };
 const statuses: Record<Resource, { value: string; label: string }[]> = {
@@ -45,33 +44,27 @@ function trap(event: React.KeyboardEvent<HTMLDialogElement>) {
   if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
 }
 
-export function OperationsPage() {
-  const [identity, setIdentity] = useState<AccessIdentity | null>(null), [phase, setPhase] = useState("loading"), [tenant, setTenant] = useState("");
-  const [resource, setResource] = useState<Resource>("products"), [page, setPage] = useState<PageData | null>(null), [error, setError] = useState(""), [notice, setNotice] = useState("");
+export function OperationsPage({ resource = "products" }: { resource?: Resource }) {
+  const { identity, phase, tenant, handleError } = useWorkspace();
+  const [page, setPage] = useState<PageData | null>(null), [error, setError] = useState(""), [notice, setNotice] = useState("");
   const [query, setQuery] = useState(""), [search, setSearch] = useState(""), [status, setStatus] = useState("all"), [sort, setSort] = useState("name"), [dateField, setDateField] = useState("created"), [from, setFrom] = useState(""), [to, setTo] = useState(""), [offset, setOffset] = useState(0), [revision, setRevision] = useState(0);
   const [editor, setEditor] = useState<Editor | null>(null), [history, setHistory] = useState<{ row: Row; type: string } | null>(null), [busy, setBusy] = useState(false);
   const generation = useRef(0), opener = useRef<HTMLElement | null>(null);
   const company = identity?.tenants.find((entry) => entry.id === tenant), rights = company?.permissions ?? [];
   const allowed = (permission: string) => rights.includes(permission);
   const clear = useCallback(() => { setPage(null); setEditor(null); setHistory(null); setNotice(""); setQuery(""); setSearch(""); setStatus("all"); setSort("name"); setDateField("created"); setFrom(""); setTo(""); setOffset(0); }, []);
-  const loadIdentity = useCallback(async () => {
-    const tag = ++generation.current; clear(); setIdentity(null); setTenant(""); setError(""); setPhase("loading");
-    try {
-      const data = await accessRequest<AccessIdentity>("/api/v1/me"); if (tag !== generation.current) return;
-      if (!data.user?.id || !Array.isArray(data.tenants)) throw new AccessError(503);
-      setIdentity(data); setTenant(data.tenants.length === 1 ? data.tenants[0].id : "");
-      const first = data.tenants.length === 1 ? (Object.keys(labels) as Resource[]).find((key) => data.tenants[0].permissions.includes(resourceRights[key])) : undefined;
-      setResource(first ?? "products"); setPhase("ready");
-    } catch (failure) { if (tag === generation.current) { setPhase(failure instanceof AccessError && failure.status === 401 ? "login" : "error"); setError(failure instanceof AccessError && failure.status === 401 ? "" : message(failure)); } }
-  }, [clear]);
-  useEffect(() => { void loadIdentity(); return () => { generation.current++; }; }, [loadIdentity]);
+  useEffect(() => () => { generation.current++; }, []);
   useEffect(() => { const timer = setTimeout(() => setSearch(query), 300); return () => clearTimeout(timer); }, [query]);
   const fail = useCallback((failure: unknown) => {
-    if (failure instanceof AccessError && [401, 403].includes(failure.status)) {
-      generation.current++; clear(); setIdentity(null); setTenant(""); setPhase(failure.status === 401 ? "login" : "error");
-    }
-    setError(message(failure));
-  }, [clear]);
+    if (failure instanceof AccessError && [401,403].includes(failure.status)) { generation.current++; clear(); handleError(failure); }
+    else setError(message(failure));
+  }, [clear, handleError]);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const kind = resource === "products" ? "product" : resource === "sales" ? "sale" : resource === "orders" ? "order" : null;
+    const right = resource === "products" ? "products.create" : resource === "sales" ? "sales.create" : "orders.create";
+    if (params.has("novo") && kind && rights.includes(right)) { setEditor({ kind }); params.delete("novo"); window.history.replaceState(null,"",window.location.pathname+(params.size ? "?"+params.toString() : "")); }
+  }, []);
   useEffect(() => {
     setPage(null); if (phase !== "ready" || !tenant || resource === "finance" || !rights.includes(resourceRights[resource])) return;
     const controller = new AbortController(), tag = generation.current;
@@ -89,17 +82,9 @@ export function OperationsPage() {
     try { await accessRequest(`${endpoint(tenant)}/commands`, { method: "POST", body: { requestId: crypto.randomUUID(), type, data } }); if (tag === generation.current) saved(); }
     catch (failure) { if (tag === generation.current) fail(failure); } finally { setBusy(false); }
   }
-  return <div className={styles.page}><header className={styles.header}><div><Link className={styles.brand} href="/operacao/">sistem.</Link><small>Operação conectada</small></div><div className={styles.identity}>{identity && <strong>{identity.user.name}</strong>}<Link href="/acessos/">Equipe e acessos</Link>{identity && <button className="button button-secondary" onClick={() => void immediateLogout()}>Sair</button>}</div></header>
-    <main className={styles.content}><div className={styles.heading}><div><span className={styles.eyebrow}>Rotina da loja</span><h1>Operação</h1><p>Cadastros, estoque e atendimentos compartilhados pela empresa.</p></div>{identity && <Field label="Empresa"><select aria-label="Empresa" value={tenant} onChange={(event) => {
-      generation.current++; clear(); setTenant(event.target.value); const selected = identity.tenants.find((entry) => entry.id === event.target.value); setResource((Object.keys(labels) as Resource[]).find((key) => selected?.permissions.includes(resourceRights[key])) ?? "products");
-    }}><option value="">Selecione a empresa</option>{identity.tenants.map((entry) => <option key={entry.id} value={entry.id}>{entry.name}</option>)}</select></Field>}</div>
-      {phase === "loading" && <p role="status">Conectando à sua conta…</p>}
-      {phase === "login" && <LoginForm error={error} onSigned={loadIdentity} />}
-      {phase === "error" && <div><p className={styles.error} role="alert">{error}</p><button className="button button-primary" onClick={() => void loadIdentity()}>Tentar novamente</button></div>}
-      {phase === "ready" && <>
+  return <><PageHeader eyebrow="ROTINA DA LOJA" title={labels[resource]} description="Cadastros e atendimentos da sua empresa." />
         {error && <p className={styles.error} role="alert">{error}</p>}{notice && <p role="status" className={styles.notice}>{notice}</p>}
         {!tenant ? <p>Selecione uma empresa para continuar.</p> : !rights.some((right) => Object.values(resourceRights).includes(right)) ? <p>Seu perfil não permite acessar a operação.</p> : <>
-          <nav className={op.tabs} aria-label="Módulos operacionais">{(Object.keys(labels) as Resource[]).filter((key) => allowed(resourceRights[key])).map((key) => <button key={key} aria-current={resource === key ? "page" : undefined} onClick={() => { generation.current++; clear(); setResource(key); }}>{labels[key]}</button>)}</nav>
           {resource === "finance" ? <FinancePanel key={tenant} tenant={tenant} actorId={identity!.user.id} rights={rights} onUnauthorized={fail} /> : <section className={styles.panel}><div className={styles.panelHeader}><div><h2>{labels[resource]}</h2><p>{resource === "stock" ? "Físico, reservado e disponível têm a mesma origem." : "Histórico e horário registrados automaticamente ao confirmar."}</p></div>
             <div className={op.headerActions}>
             {resource === "products" && allowed("products.create") && <button className="button button-primary" onClick={(event) => open({ kind: "product" }, event.currentTarget)}>Novo produto</button>}
@@ -137,12 +122,10 @@ export function OperationsPage() {
             {page && <div className={styles.footer}><span>{page.total} registros</span><div><button disabled={!offset} onClick={() => setOffset(Math.max(0, offset - 25))}>Anterior</button><button disabled={offset + 25 >= page.total} onClick={() => setOffset(offset + 25)}>Próxima</button></div></div>}
           </section>}
         </>}
-      </>}
-      <p className={styles.notice}>Esta área usa dados da empresa no servidor. Recebimentos em Pix e transferência exigem conferência manual. Entrega não confirma quitação; emissão fiscal e consulta externa de crédito permanecem pendentes. A <Link href="/">demonstração</Link> é independente.</p>
+
       {editor && (editor.kind === "prices" ? <PricesEditor key={tenant} tenant={tenant} onClose={close} onSaved={saved} onUnauthorized={fail} /> : editor.kind === "agreement" ? <AgreementEditor tenant={tenant} source={editor.row!} onClose={close} onSaved={saved} onUnauthorized={fail} /> : editor.kind === "sale" && allowed("finance.agreements.create") ? <CheckoutEditor key={tenant} tenant={tenant} actorId={identity!.user.id} rights={rights} auxiliary={AuxiliaryForm} onClose={close} onSaved={saved} onUnauthorized={fail} /> : <OperationEditor key={`${tenant}:${editor.kind}:${editor.row?.id ?? "new"}`} tenant={tenant} editor={editor} rights={rights} onClose={close} onSaved={saved} onUnauthorized={fail} generation={generation} />)}
       {history && <HistoryDialog key={`${tenant}:${history.row.id}`} tenant={tenant} value={history} onClose={close} onUnauthorized={fail} />}
-    </main></div>;
-  async function immediateLogout() { if (busy) return; setBusy(true); try { await accessRequest("/api/auth/sign-out", { method: "POST", body: {} }); generation.current++; clear(); setIdentity(null); setTenant(""); setPhase("login"); setError(""); } catch (failure) { fail(failure); } finally { setBusy(false); } }
+  </>;
 }
 
 function OperationEditor({ tenant, editor, rights, onClose, onSaved, onUnauthorized, generation }: { tenant: string; editor: Editor; rights: string[]; onClose: () => void; onSaved: (text?: string) => void; onUnauthorized: (error: unknown) => void; generation: React.RefObject<number> }) {
@@ -208,7 +191,7 @@ function OperationEditor({ tenant, editor, rights, onClose, onSaved, onUnauthori
       {editor.kind === "deliverOrder" && <><p>OS {row?.number} · {row?.customerName} · {row?.equipment}</p><p className={styles.notice}>{row?.finance ? `Recebido: ${money(row.finance.paidCents)}. Em aberto: ${money(row.finance.outstandingCents)}.` : row?.agreementId ? "Condições financeiras registradas. Confira os recebimentos com o responsável financeiro." : "Esta OS ainda não tem condições de pagamento registradas."} Esta ação registra somente a entrega do equipamento.</p><label><input type="checkbox" required checked={draft.allowUnsettled} onChange={(event) => set("allowUnsettled", event.target.checked)} />Confirmo a entrega com a situação financeira informada.</label></>}
       <div className="form-actions"><button type="button" className="button button-secondary" onClick={onClose}>Cancelar</button><button className="button button-primary" type="submit" disabled={busy || (editor.kind === "sale" && !items.length)}>{busy ? "Confirmando…" : saveLabel}</button></div>
     </fieldset></form>
-    {auxiliary && <AuxiliaryForm tenant={tenant} kind={auxiliary} onClose={() => setAuxiliary(null)} onSaved={(entity) => {
+    {auxiliary && <AuxiliaryForm tenant={tenant} kind={auxiliary} onClose={() => setAuxiliary(null)} onUnauthorized={onUnauthorized} onSaved={(entity) => {
       if (auxiliary === "customer") { setCustomers((current) => [...current, entity]); set("customerId", entity.id); }
       if (auxiliary === "technician") { setTechnicians((current) => [...current, entity]); set("technicianId", entity.id); }
       if (auxiliary === "product") { setProducts((current) => [...current, entity]); setItems((current) => current.map((line, index) => index === current.length - 1 ? { ...line, productId: entity.id } : line)); }

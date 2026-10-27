@@ -1,4 +1,2 @@
-import { SettingsPage } from "@/features/settings";
-export default function Page() {
-  return <SettingsPage />;
-}
+import { WorkspaceSettings } from "@/features/workspace-home";
+export default function Page() { return <WorkspaceSettings />; }

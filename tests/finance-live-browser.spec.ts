@@ -57,7 +57,11 @@ async function connected(page: Page, options: { rights?: string[]; command?: Han
   return { commands, queries };
 }
 async function openSale(page: Page) {
-  await page.goto("/operacao/"); await page.getByRole("button", { name: "Vendas", exact: true }).click(); await page.getByRole("button", { name: "Nova venda", exact: true }).click();
+  await page.goto("/produtos/");
+  await expect(page.getByRole("heading", { name: "Produtos", level: 1, exact: true })).toBeVisible();
+  const menu = page.getByRole("button", { name: "Abrir navegação", exact: true });
+  if (await menu.isVisible()) await menu.click();
+  await page.getByRole("link", { name: "Vendas", exact: true }).click(); await page.getByRole("button", { name: "Nova venda", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Nova venda", exact: true });
   await expect(dialog.getByLabel("Cliente", { exact: true }).locator("option")).toHaveCount(2);
   await dialog.getByLabel("Cliente", { exact: true }).selectOption(customer.id);
@@ -65,7 +69,7 @@ async function openSale(page: Page) {
   await dialog.getByLabel("Produto 1", { exact: true }).selectOption(product.id); return dialog;
 }
 async function openReceive(page: Page) {
-  await page.goto("/operacao/"); await page.getByRole("button", { name: "Financeiro", exact: true }).click();
+  await page.goto("/produtos/"); await page.getByRole("link", { name: "Financeiro", exact: true }).click();
   await page.getByRole("button", { name: `Receber de ${customer.name}`, exact: true }).click();
   const dialog = page.getByRole("dialog", { name: `Receber de ${customer.name}`, exact: true });
   await dialog.getByLabel("Valor recebido", { exact: true }).fill("150,00");
@@ -97,7 +101,7 @@ test("FIN-UI02 erro de conclusão conserva condição, carrinho e identidade da 
 });
 
 test("FIN-UI03 leitura repetida do SKU agrega quantidade sem abrir outra linha ou confirmar a venda", async ({ page }) => {
-  const { commands } = await connected(page); await page.goto("/operacao/"); await page.getByRole("button", { name: "Vendas", exact: true }).click(); await page.getByRole("button", { name: "Nova venda", exact: true }).click();
+  const { commands } = await connected(page); await page.goto("/produtos/"); await page.getByRole("link", { name: "Vendas", exact: true }).click(); await page.getByRole("button", { name: "Nova venda", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Nova venda", exact: true }), reader = dialog.getByLabel("Ler código ou SKU", { exact: true });
   await reader.fill(product.sku); await reader.press("Enter"); await expect(dialog.getByLabel("Produto 1", { exact: true })).toHaveValue(product.id);
   await reader.fill(product.sku); await reader.press("Enter"); await expect(dialog.getByLabel("Quantidade 1", { exact: true })).toHaveValue("2");
@@ -114,7 +118,7 @@ test("FIN-UI15 código ambíguo fora do catálogo carregado não escolhe produto
     await route.fulfill({ json: { tenantId, items: [product, { ...product, id: "other-product", sku: "OTHER-SKU" }], total: 2, limit: 2, offset: 0 },
       headers: { "access-control-allow-origin": "http://127.0.0.1:3000", "access-control-allow-credentials": "true" } });
   });
-  await page.goto("/operacao/"); await page.getByRole("button", { name: "Vendas", exact: true }).click();
+  await page.goto("/produtos/"); await page.getByRole("link", { name: "Vendas", exact: true }).click();
   await page.getByRole("button", { name: "Nova venda", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Nova venda", exact: true });
   await expect(dialog.getByLabel("Produto 1", { exact: true }).locator("option")).toHaveCount(2);
@@ -159,7 +163,7 @@ test("FIN-UI06 pagamento pendente bloqueia edição e falha preserva valor e ten
 
 test("FIN-UI07 perfil sem financeiro não consulta saldos e conserva o editor operacional anterior", async ({ page }) => {
   const { queries } = await connected(page, { rights: rights.filter((permission) => !permission.startsWith("finance.")) });
-  const dialog = await openSale(page); await expect(page.getByRole("button", { name: "Financeiro", exact: true })).toHaveCount(0); await expect(dialog.getByLabel("Condição de pagamento", { exact: true })).toHaveCount(0);
+  const dialog = await openSale(page); await expect(page.getByRole("link", { name: "Financeiro", exact: true })).toHaveCount(0); await expect(dialog.getByLabel("Condição de pagamento", { exact: true })).toHaveCount(0);
   await expect(dialog.getByRole("button", { name: "Confirmar venda", exact: true })).toBeVisible(); expect(queries.some((query) => query.includes("/finance/"))).toBe(false);
 });
 
@@ -201,7 +205,7 @@ test("FIN-UI10 distribuição manual inválida não é silenciosamente tratada c
 
 test("FIN-UI11 extrato reabre recibo anterior sem registrar outro pagamento", async ({ page }) => {
   const { commands, queries } = await connected(page, { receiptHistory: true });
-  await page.goto("/operacao/"); await page.getByRole("button", { name: "Financeiro", exact: true }).click();
+  await page.goto("/produtos/"); await page.getByRole("link", { name: "Financeiro", exact: true }).click();
   await page.getByRole("button", { name: `Extrato de ${customer.name}`, exact: true }).click();
   const statement = page.getByRole("dialog", { name: `Extrato de ${customer.name}`, exact: true });
   const history = statement.getByRole("button", { name: "Recebimentos", exact: true }); await expect(history).toBeVisible(); await history.click();

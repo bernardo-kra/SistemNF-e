@@ -42,7 +42,7 @@ try {
   };
   stage = "manager-login"; await enter(manager, owner.email, owner.password);
   await expect(manager.getByRole("button", { name: "Novo produto", exact: true })).toBeVisible();
-  manager.on("framenavigated", (frame) => { if (frame === manager.mainFrame()) navigations++; });
+  manager.on("request", (request) => { if (request.isNavigationRequest() && request.resourceType() === "document") navigations++; });
   stage = "product-and-stock";
   await manager.getByRole("button", { name: "Novo produto", exact: true }).click();
   let modal = manager.getByRole("dialog");
@@ -59,7 +59,7 @@ try {
   const product = (await list("products"))[0]; assert.equal(product.stock.physical, 5);
 
   stage = "order-context";
-  await manager.getByRole("button", { name: "OS", exact: true }).click();
+  await manager.getByRole("link", { name: "Ordens de serviço", exact: true }).click();
   await manager.getByRole("button", { name: "Nova OS", exact: true }).click();
   modal = manager.getByRole("dialog", { name: "Nova OS", exact: true });
   await modal.getByLabel("Equipamento", { exact: true }).fill("Telefone ficticio preservado");
@@ -80,7 +80,7 @@ try {
   assert.equal(order.updatedBy, owner.id); assert.equal(order.financeStatus, "not_integrated"); assert.notEqual(order.technicianId, owner.id);
 
   stage = "sale-reservation-delivery";
-  await manager.getByRole("button", { name: "Vendas", exact: true }).click();
+  await manager.getByRole("link", { name: "Vendas", exact: true }).click();
   await manager.getByRole("button", { name: "Nova venda", exact: true }).click(); modal = manager.getByRole("dialog");
   await expect(modal.getByLabel("Cliente", { exact: true }).locator("option")).toHaveCount(2);
   await modal.getByLabel("Cliente", { exact: true }).selectOption(order.customerId);
@@ -101,7 +101,7 @@ try {
   await command("purchase.confirm", { document: { key: "PRECONDITION-500", supplierId, supplierName: "Fornecedor ficticio", number: "PRE", items, totalCents: 500000 }, decisions: Object.fromEntries(items.map((item) => [item.id, { action: "link", productId: product.id }])), receive: false });
   const xmlKey = "35261012345678000190550010000000011000000010";
   const xml = `<nfeProc><NFe><infNFe Id="NFe${xmlKey}"><ide><nNF>2</nNF></ide><emit><CNPJ>${supplierId}</CNPJ><xNome>Fornecedor ficticio</xNome></emit>${items.map((item) => `<det nItem="${item.id}"><prod><cProd>${item.code}</cProd><xProd>${description}</xProd><NCM>39269090</NCM><uCom>UN</uCom><qCom>1</qCom><vUnCom>10.00</vUnCom><vProd>10.00</vProd></prod></det>`).join("")}<total><ICMSTot><vProd>5000.00</vProd><vNF>5000.00</vNF></ICMSTot></total></infNFe></NFe></nfeProc>`;
-  await manager.getByRole("button", { name: "Compras", exact: true }).click();
+  await manager.getByRole("link", { name: "Compras", exact: true }).click();
   const trafficStart = traffic.length, started = performance.now();
   await manager.getByLabel("Arquivo XML", { exact: true }).setInputFiles({ name: "ficticio-500.xml", mimeType: "text/xml", buffer: Buffer.from(xml) });
   await expect(manager.getByText("500 itens reconhecidos", { exact: true })).toBeVisible();
@@ -116,7 +116,7 @@ try {
   stock = (await list("stock"))[0]; assert.equal(stock.physical, 503); assert.equal(stock.reserved, 0);
 
   stage = "history-and-captures";
-  await manager.getByRole("button", { name: "Produtos", exact: true }).click();
+  await manager.getByRole("link", { name: "Produtos", exact: true }).click();
   await manager.getByRole("button", { name: /^Histórico de/ }).click();
   await expect(manager.getByRole("dialog").getByText("Pessoa de teste", { exact: true }).first()).toBeVisible();
   await manager.getByRole("dialog").getByRole("button", { name: /Fechar/ }).click();
@@ -132,7 +132,7 @@ try {
   await enter(employeePage, employee.email, employee.password);
   await expect(employeePage.getByRole("columnheader", { name: "Venda", exact: true })).toBeVisible();
   await expect(employeePage.getByRole("columnheader", { name: "Compra", exact: true })).toHaveCount(0);
-  await expect(employeePage.getByRole("button", { name: "Compras", exact: true })).toHaveCount(0);
+  await expect(employeePage.getByRole("link", { name: "Compras", exact: true })).toHaveCount(0);
   const response = await employeeContext.request.get(`${operations}/products`); statuses.employeeRead = response.status(); assert.equal(response.status(), 200);
   assert.equal(Object.hasOwn((await response.json()).items[0], "costCents"), false);
   await fixture.control.migrationPool.query("UPDATE memberships SET active=false WHERE user_id=$1 AND tenant_id=$2", [employee.id, TENANT_A]);

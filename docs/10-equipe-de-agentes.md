@@ -1,5 +1,7 @@
 # Equipe de agentes do Sistem
 
+**Entrega UNI — 27/10/2026:** navegação principal e login reais unificados, contexto de sessão/empresa compartilhado e demonstração explícita em `/demo/`. Coordenador implementou e integrou; QA independente definiu os cenários, reproduziu falhas de menu tablet/expiração contextual, revisou fontes e aprovou 17/17 casos e inspeção visual. Regressão geral, integração Neon e publicação são verificações do coordenador, registradas no [documento UNI](15-auditoria-acessos-e-filtros.md). Os registros abaixo mantêm o histórico das etapas anteriores.
+
 **Continuidade de publicação em 27/10/2026:** usuário autorizou commit/push e execução online. Instâncias locais encerradas; homologação Render Free/Neon publicada e validada por Chrome/HTTPS com a empresa real informada pelo usuário, sem dados financeiros fictícios. Backend completo 110/110 e build aprovados; frontend 251 cenários únicos em rodadas. Revisor independente encontrou e conferiu correção do GTIN ambíguo e do orçamento de conexão após 503 no Render. Testes RED/GREEN pertinentes e 12 checks após esse ajuste passaram; o teste final online aprovou login, cookie, reload, produtos, financeiro, privacidade e logout. Código publicado `d3f36cb`. Evidências e histórico de falhas/correções no [documento 13](13-backend-primeiro-recorte.md). Registros de preparação com publicação pendente abaixo são checkpoints anteriores.
 
 ## Registro resumido — Neon/Render, 27/10/2026

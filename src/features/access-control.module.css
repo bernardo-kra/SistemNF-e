@@ -31,6 +31,8 @@
 .login { max-width: 440px; margin: 64px auto; padding: 30px; background: white; border: 1px solid #dde5f0; border-radius: 14px; box-shadow: 0 10px 30px #13294b08; }
 .login h2 { font-size: 21px; margin: 0 0 8px; }
 .login p { font-size: 13px; color: #64748b; line-height: 1.6; margin-bottom: 22px; }
+.loginEmbedded { width: 100%; }
+.loginEmbedded p { font-size: 13px; color: #64748b; line-height: 1.6; margin-bottom: 22px; }
 .form { display: grid; gap: 16px; }
 .form input, .form select { width: 100%; }
 .form fieldset { border: 1px solid #dce4ef; border-radius: 8px; padding: 16px; min-width: 0; }

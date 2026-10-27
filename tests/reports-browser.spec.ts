@@ -6,7 +6,7 @@ import { defaultFinance } from "../src/lib/finance/engine";
 
 test("REL-04/06/UI-01: relatório filtra recebimentos e CSV exporta o mesmo conjunto sem alterar operação", async ({ page }) => {
   await seedDiagnosticsBrowser(page);
-  await page.goto("/relatorios/");
+  await page.goto("/demo/relatorios/");
   await expect(page.getByRole("heading", { name: "Relatórios", exact: true })).toBeVisible();
   const before = await savedOperational(page);
   await page.getByRole("combobox", { name: "Tipo de relatório", exact: true }).selectOption("receipts");
@@ -39,7 +39,7 @@ test("REL-04/06/UI-01: relatório filtra recebimentos e CSV exporta o mesmo conj
 
 test("REL-01/05: OS e vendas preservam valores comerciais e deixam legado e aprovação explícitos", async ({ page }) => {
   await seedDiagnosticsBrowser(page);
-  await page.goto("/relatorios/");
+  await page.goto("/demo/relatorios/");
   await expect(page.getByRole("heading", { name: "Relatórios", exact: true })).toBeVisible();
   await page.getByLabel("Data inicial", { exact: true }).fill("2026-10-13");
   await page.getByLabel("Data final", { exact: true }).fill("2026-10-17");
@@ -60,7 +60,7 @@ test("REL-01/05: OS e vendas preservam valores comerciais e deixam legado e apro
 test("UI-01: navegação, filtros por teclado e intervalo recuperável em 390 px sem overflow da página", async ({ page }) => {
   await seedDiagnosticsBrowser(page);
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/relatorios/");
+  await page.goto("/demo/relatorios/");
   await expect(page.getByRole("heading", { name: "Relatórios", exact: true })).toBeVisible();
   const type = page.getByRole("combobox", { name: "Tipo de relatório", exact: true });
   await type.focus();
@@ -97,7 +97,7 @@ test("REL-06: linha, total comercial e CSV preservam centavos seguros sem arredo
   sale.total = 9007199254740987;
   sale.items = [{ productId: "p3", quantity: 1, unitPrice: 9007199254740987 }];
   await seedDiagnosticsBrowser(page, state);
-  await page.goto("/relatorios/");
+  await page.goto("/demo/relatorios/");
   await expect(page.getByRole("button", { name: "Exportar CSV", exact: true })).toBeEnabled();
   // Filtrar antes da consulta de Vendas evita somar outro registro ao limite.
   await page.getByRole("combobox", { name: "Consumidor", exact: true }).selectOption("c3");

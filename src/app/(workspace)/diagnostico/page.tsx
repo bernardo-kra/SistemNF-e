@@ -1,5 +1,2 @@
-import { DiagnosticsPage } from "@/features/diagnostics";
-
-export default function Page() {
-  return <DiagnosticsPage />;
-}
+import { WorkspacePending } from "@/features/workspace-home";
+export default function Page() { return <WorkspacePending title="Diagnóstico" />; }

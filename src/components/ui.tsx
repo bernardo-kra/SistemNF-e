@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef } from "react";
 import { Search, X, PackageOpen, ArrowUpRight } from "lucide-react";
-import Link from "next/link";
+import Link from "@/components/demo-link";
 import type { Tone } from "@/lib/domain";
 
 export function Badge({

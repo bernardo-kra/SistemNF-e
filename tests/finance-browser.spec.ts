@@ -15,7 +15,7 @@ async function savedState(page: Page): Promise<DemoState> {
   );
 }
 async function createSaleAgreement(page: Page) {
-  await page.goto("/financeiro/?source=sale:s400");
+  await page.goto("/demo/financeiro/?source=sale:s400");
   const dialog = page.getByRole("dialog");
   await expect(
     dialog.getByRole("heading", {
@@ -261,7 +261,7 @@ test("migração do navegador conserva legado sem gerar caixa nem esconder aviso
 }) => {
   const { finance: _finance, ...legacy } = financeFixture();
   await seedBrowser(page, { ...legacy, version: 2 });
-  await page.goto("/financeiro/");
+  await page.goto("/demo/financeiro/");
   await expect(
     page.getByRole("heading", { name: "Financeiro", exact: true }),
   ).toBeVisible();
@@ -287,7 +287,7 @@ test("falha de restauração financeira preserva arquivo original e bloqueia gra
   const broken = financeFixture();
   broken.finance.accounts[0].openingBalance = -1;
   await seedBrowser(page, broken);
-  await page.goto("/financeiro/");
+  await page.goto("/demo/financeiro/");
   await expect(
     page.getByText(
       /dados locais não puderam ser recuperados e foram preservados/i,
@@ -308,7 +308,7 @@ test("falha de restauração financeira preserva arquivo original e bloqueia gra
   await expect(
     page.getByRole("button", { name: "Criar acordo", exact: true }),
   ).toBeDisabled();
-  await page.goto("/configuracoes/");
+  await page.goto("/demo/configuracoes/");
   const pendingDownload = page.waitForEvent("download");
   await page
     .getByRole("button", {

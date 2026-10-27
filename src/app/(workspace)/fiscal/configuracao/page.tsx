@@ -1,4 +1,2 @@
-import { FiscalConfigurationPage } from "@/features/fiscal/configuration";
-export default function Page() {
-  return <FiscalConfigurationPage />;
-}
+import { WorkspacePending } from "@/features/workspace-home";
+export default function Page() { return <WorkspacePending title="Configuração fiscal" />; }

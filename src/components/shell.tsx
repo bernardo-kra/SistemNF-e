@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/components/demo-link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
@@ -26,6 +26,7 @@ import {
   Command,
   Plus,
 } from "lucide-react";
+import { demoHref } from "../../shared/workspace-routes.mjs";
 import { useDemo } from "@/lib/demo-store";
 import { matches } from "@/lib/domain";
 import { Avatar, Modal } from "./ui";
@@ -55,7 +56,8 @@ const groups = [
 ];
 
 export function Shell({ children }: { children: React.ReactNode }) {
-  const path = usePathname();
+  const currentPath = usePathname();
+  const path = currentPath.replace(/^\/demo(?=\/|$)/, "") || "/";
   const router = useRouter();
   const { state, notify, storageAvailable } = useDemo();
   const [mobile, setMobile] = useState(false);
@@ -87,8 +89,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const go = (href: string) => {
     setSearch(false);
     setQuery("");
-    if (href.split("?")[0] === path) window.location.assign(href);
-    else router.push(href);
+    if (href.split("?")[0] === path) window.location.assign(demoHref(href, currentPath));
+    else router.push(demoHref(href, currentPath));
   };
   const activeLabel =
     groups
@@ -133,7 +135,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
           </div>
           <ChevronDown size={14} />
         </div>
-        <nav>
+        <nav aria-label="Navegação principal">
           {groups.map((group) => (
             <div className="nav-group" key={group.title}>
               <span className="nav-group-label">{group.title}</span>

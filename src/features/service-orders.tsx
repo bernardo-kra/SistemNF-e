@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
+import Link from "@/components/demo-link";
 import { OrderReceipt, type OrderReceiptSnapshot } from "@/components/order-receipt";
 import { findOrderByCode, orderCode } from "@/lib/order-code";
 import { orderReceived, sourceAgreement } from "@/lib/finance/engine";
@@ -142,7 +142,7 @@ export function OrdersPage() {
   };
   const closeDetail = () => {
     setSelected(null);
-    window.history.replaceState(null, "", "/ordens/");
+    window.history.replaceState(null, "", "/demo/ordens/");
   };
 
   useEffect(() => {

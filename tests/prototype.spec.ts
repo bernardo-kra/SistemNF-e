@@ -3,7 +3,7 @@ import { test, expect } from "@playwright/test";
 test("busca global abre outro registro mesmo na página atual", async ({
   page,
 }) => {
-  await page.goto("/ordens/?os=o1042");
+  await page.goto("/demo/ordens/?os=o1042");
   await page.getByRole("button", { name: /Buscar na plataforma/ }).click();
   await page.getByRole("dialog").getByRole("textbox").fill("1041");
   await page
@@ -18,7 +18,7 @@ test("busca global abre outro registro mesmo na página atual", async ({
 test("nova OS registra equipamento e não cria recebível antes de aprovação", async ({
   page,
 }) => {
-  await page.goto("/ordens/");
+  await page.goto("/demo/ordens/");
   await page
     .getByRole("button", { name: "Nova ordem de serviço", exact: true })
     .click();
@@ -40,7 +40,7 @@ test("nova OS registra equipamento e não cria recebível antes de aprovação",
 });
 
 test("cadastro de cliente permanece após recarregar", async ({ page }) => {
-  await page.goto("/clientes/");
+  await page.goto("/demo/clientes/");
   await page.getByRole("button", { name: "Novo cliente", exact: true }).click();
   await page.getByLabel("Nome / razão social").fill("Cliente Teste QA");
   await page.getByLabel("E-mail", { exact: true }).fill("teste@example.com");
@@ -57,7 +57,7 @@ test("cadastro de cliente permanece após recarregar", async ({ page }) => {
 test("produto novo não gera saldo; entrada manual altera apenas estoque", async ({
   page,
 }) => {
-  await page.goto("/produtos/");
+  await page.goto("/demo/produtos/");
   await page.getByRole("button", { name: "Novo produto", exact: true }).click();
   await page.getByLabel("Nome do produto").fill("Adaptador de teste");
   await page.getByLabel("SKU / código interno").fill("QA-ADAPT");
@@ -75,7 +75,7 @@ test("produto novo não gera saldo; entrada manual altera apenas estoque", async
 });
 
 test("OS exige aprovação e checklist antes de entregar", async ({ page }) => {
-  await page.goto("/ordens/?os=o1042");
+  await page.goto("/demo/ordens/?os=o1042");
   await expect(page.getByText("Recebível não gerado")).toBeVisible();
   await page
     .getByRole("button", { name: "Registrar aprovação", exact: true })
@@ -115,7 +115,7 @@ test("OS exige aprovação e checklist antes de entregar", async ({ page }) => {
 test("recebimento parcial preserva saldo e aprovação pendente não aparece como dívida", async ({
   page,
 }) => {
-  await page.goto("/financeiro/");
+  await page.goto("/demo/financeiro/");
   await expect(
     page.getByRole("row").filter({ hasText: "OS #1042" }),
   ).toHaveCount(0);
@@ -178,7 +178,7 @@ test("recebimento parcial preserva saldo e aprovação pendente não aparece com
     ),
   ).toBe(2000);
   expect(saved.finance.movements).toHaveLength(1);
-  await page.goto("/ordens/?os=o1041");
+  await page.goto("/demo/ordens/?os=o1041");
   await expect(
     page.getByText("R$ 120,00 recebido · R$ 100,00 de histórico informado", {
       exact: true,
@@ -192,7 +192,7 @@ test("recebimento parcial preserva saldo e aprovação pendente não aparece com
 test("importação cria somente produtos novos e bloqueia o mesmo documento", async ({
   page,
 }) => {
-  await page.goto("/importar/");
+  await page.goto("/demo/importar/");
   await page.getByRole("button", { name: /Experimentar com uma nota/ }).click();
   await page.getByRole("button", { name: "Confirmar cadastros" }).click();
   await expect(
@@ -202,7 +202,7 @@ test("importação cria somente produtos novos e bloqueia o mesmo documento", as
   await expect(
     page.getByRole("row").filter({ hasText: "HUB-USB" }),
   ).toContainText("0 UN");
-  await page.goto("/importar/");
+  await page.goto("/demo/importar/");
   await page.getByRole("button", { name: /Experimentar com uma nota/ }).click();
   await page.getByRole("button", { name: "Confirmar cadastros" }).click();
   await expect(
@@ -211,7 +211,7 @@ test("importação cria somente produtos novos e bloqueia o mesmo documento", as
 });
 
 test("venda reserva e entrega baixa uma única vez", async ({ page }) => {
-  await page.goto("/vendas/");
+  await page.goto("/demo/vendas/");
   await page.getByRole("button", { name: "Nova venda", exact: true }).click();
   await page.getByLabel("Produto", { exact: false }).selectOption("p3");
   await page.getByLabel("Quantidade").fill("2");
@@ -231,7 +231,7 @@ test("venda reserva e entrega baixa uma única vez", async ({ page }) => {
 test("XML malformado mostra erro e permite nova tentativa", async ({
   page,
 }) => {
-  await page.goto("/importar/");
+  await page.goto("/demo/importar/");
   await page.locator('input[type="file"]').setInputFiles({
     name: "invalid.xml",
     mimeType: "application/xml",
@@ -252,7 +252,7 @@ test("mobile tem navegação, modal acessível e não vaza largura", async ({
   await page.setViewportSize({ width: 390, height: 844 });
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.goto("/");
+  await page.goto("/demo/");
   await expect(
     page.getByRole("heading", { name: "Visão geral", exact: true }),
   ).toBeVisible();

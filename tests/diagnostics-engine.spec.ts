@@ -1,11 +1,17 @@
 import { expect, test } from "@playwright/test";
 import {
-  exportDiagnostics, filterDiagnostics, instrumentOperation,
+  exportDiagnostics, filterDiagnostics, instrumentOperation, diagnosticRoute,
   type DiagnosticEvent,
 } from "../src/lib/diagnostics/engine";
 import { createDiagnosticRecorder, DIAGNOSTICS_KEY, MAX_DIAGNOSTIC_EVENTS } from "../src/lib/diagnostics/store";
 
 const uuid = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+
+// A mesma expectativa foi executada em Node antes da correção do prefixo (RED).
+test("LOG-UNI demonstração preserva módulo do diagnóstico sem copiar parâmetros privados", () => {
+  expect(diagnosticRoute("/demo/estoque/?token=fixture")).toBe("/estoque/");
+  expect(diagnosticRoute("/demo/produtos/")).toBe("/produtos/");
+});
 const installationId = uuid(1);
 const at = "2026-10-17T01:30:00.000Z";
 const event = (n: number, overrides: Partial<DiagnosticEvent> = {}): DiagnosticEvent => ({

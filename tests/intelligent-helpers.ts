@@ -42,7 +42,7 @@ export function purchaseXml(document: PurchaseDocument) {
 export async function startIntelligent(page: Page, route = "/importar/", state: unknown = intelligentFixture(), normalize = true) {
   const raw = JSON.stringify(normalize ? restoreDemoState(state) : state);
   await page.addInitScript(({ key, value }) => { if (!localStorage.getItem(key)) localStorage.setItem(key, value); }, { key: intelligentKey, value: raw });
-  await page.goto(route);
+  await page.goto(route.startsWith("/demo/") ? route : `/demo${route}`);
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   return raw;
 }

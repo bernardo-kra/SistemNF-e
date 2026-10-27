@@ -1,2 +1,2 @@
-import { OperationsPage } from "@/features/operations-page";
-export default function Page() { return <OperationsPage />; }
+import { WorkspaceRedirect } from "@/features/workspace-redirect";
+export default function Page() { return <WorkspaceRedirect to="/produtos/" />; }

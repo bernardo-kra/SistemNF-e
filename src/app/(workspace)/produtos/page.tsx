@@ -1,4 +1,2 @@
-import { ProductsPage } from "@/features/products";
-export default function Page() {
-  return <ProductsPage />;
-}
+import { OperationsPage } from "@/features/operations-page";
+export default function Page() { return <OperationsPage resource="products" />; }

@@ -1,4 +1,2 @@
-import { FiscalPage } from "@/features/commercial";
-export default function Page() {
-  return <FiscalPage />;
-}
+import { WorkspacePending } from "@/features/workspace-home";
+export default function Page() { return <WorkspacePending title="Documentos fiscais" />; }

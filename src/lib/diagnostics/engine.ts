@@ -98,7 +98,7 @@ const routes = new Set([
 
 export function diagnosticRoute(value: unknown): string {
   if (typeof value !== "string") return "/";
-  const path = value.split(/[?#]/, 1)[0];
+  const path = value.split(/[?#]/, 1)[0].replace(/^\/demo(?=\/|$)/, "") || "/";
   const canonical = path.endsWith("/") ? path : `${path}/`;
   return routes.has(canonical) ? canonical : "/";
 }

@@ -1,4 +1,2 @@
-import { XmlImportPage } from "@/features/xml-import";
-export default function Page() {
-  return <XmlImportPage />;
-}
+import { WorkspaceRedirect } from "@/features/workspace-redirect";
+export default function Page() { return <WorkspaceRedirect to="/compras/" />; }

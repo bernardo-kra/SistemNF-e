@@ -1,9 +1,8 @@
-import { Shell } from "@/components/shell";
-import { DemoProvider } from "@/lib/demo-store";
+import { WorkspaceShell } from "@/features/workspace-shell";
 export default function WorkspaceLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return <DemoProvider><Shell>{children}</Shell></DemoProvider>;
+  return <WorkspaceShell>{children}</WorkspaceShell>;
 }

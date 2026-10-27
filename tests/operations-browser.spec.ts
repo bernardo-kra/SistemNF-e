@@ -14,7 +14,7 @@ test("OP-UI01 cadastro e histórico de produto na mesma página; falha preserva 
     else body = { tenantId, items: rows, total: rows.length, limit: 25, offset: 0 };
     await route.fulfill({ status, json: body });
   });
-  await page.goto("/operacao/");
+  await page.goto("/produtos/");
   await page.getByRole("button", { name: "Novo produto", exact: true }).click();
   const modal = page.getByRole("dialog");
   await modal.getByLabel("SKU", { exact: true }).fill(product.sku);
@@ -28,7 +28,7 @@ test("OP-UI01 cadastro e histórico de produto na mesma página; falha preserva 
   expect(saved[0].requestId).toBe(saved[1].requestId);
   await page.getByRole("button", { name: `Histórico de ${product.name}`, exact: true }).click();
   await expect(page.getByRole("dialog").getByText("Gestora real", { exact: true })).toBeVisible();
-  expect(page.url()).toContain("/operacao/");
+  expect(page.url()).toContain("/produtos/");
 });
 
 test("OP-UI02 perfil sem direito não consulta módulos e custo não é apresentado", async ({ page }) => {
@@ -38,10 +38,10 @@ test("OP-UI02 perfil sem direito não consulta módulos e custo não é apresent
     const { costCents: _cost, ...safe } = product;
     await route.fulfill({ json: path.endsWith("/me") ? { user: { id: "viewer", name: "Consulta", email: "viewer@example.test" }, tenants: [{ id: tenantId, name: "Loja", role: "viewer", permissions: ["products.read"] }] } : { tenantId, items: [safe], total: 1, limit: 25, offset: 0 } });
   });
-  await page.goto("/operacao/");
+  await page.goto("/produtos/");
   await expect(page.getByText(product.name, { exact: true })).toBeVisible();
   await expect(page.getByRole("columnheader", { name: "Compra", exact: true })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Compras", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Compras", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Novo produto", exact: true })).toHaveCount(0);
   expect(queries.some((path) => /purchases|orders|sales|stock/.test(path))).toBe(false);
 });
@@ -56,19 +56,19 @@ test("OP-UI03 XML500 conhecidos: um plano e uma confirmação sem controles por 
     else body = { tenantId, items: path.endsWith("products") ? [product] : [], total: 0, limit: 25, offset: 0 };
     await route.fulfill({ json: body });
   });
-  await page.goto("/operacao/"); await page.getByRole("button", { name: "Compras", exact: true }).click();
+  await page.goto("/produtos/"); await page.getByRole("link", { name: "Compras", exact: true }).click();
   const xml = `<nfeProc><NFe><infNFe Id="QA-500"><ide><nNF>500</nNF></ide><emit><CNPJ>11111111000111</CNPJ><xNome>Fornecedor QA</xNome></emit>${Array.from({ length: 500 }, (_, index) => `<det nItem="${index + 1}"><prod><cProd>${index}</cProd><xProd>CAPA MAGSAFE IPHONE 16</xProd><NCM>39269090</NCM><uCom>UN</uCom><qCom>1</qCom><vUnCom>10.00</vUnCom><vProd>10.00</vProd></prod></det>`).join("")}<total><ICMSTot><vNF>5000.00</vNF></ICMSTot></total></infNFe></NFe></nfeProc>`;
   await page.getByLabel("Arquivo XML", { exact: true }).setInputFiles({ name: "compra-500.xml", mimeType: "application/xml", buffer: Buffer.from(xml) });
   await expect(page.getByText("500 itens reconhecidos", { exact: true })).toBeVisible();
   await expect(page.getByRole("combobox", { name: /Ação para/ })).toHaveCount(0);
   await page.getByRole("button", { name: "Confirmar recebimento", exact: true }).click();
   await expect(page.getByText("Compra confirmada.", { exact: true })).toBeVisible();
-  expect(plans).toBe(1); expect(commands).toBe(1); expect(page.url()).toContain("/operacao/");
+  expect(plans).toBe(1); expect(commands).toBe(1); expect(page.url()).toContain("/compras/");
 });
 
 test("OP-UI04 indisponibilidade não mostra exemplos locais", async ({ page }) => {
   await page.route("http://127.0.0.1:4000/**", (route) => route.fulfill({ status: 503, json: { error: { code: "SERVICE_UNAVAILABLE" } } }));
-  await page.goto("/operacao/"); await expect(page.getByRole("main").getByRole("alert")).toContainText("Não foi possível");
+  await page.goto("/produtos/"); await expect(page.getByRole("main").getByRole("alert")).toContainText("Não foi possível");
   await expect(page.getByText("André Martins", { exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Novo produto", exact: true })).toHaveCount(0);
 });
@@ -81,7 +81,7 @@ test("OP-UI05 preços pendentes recebem um percentual e uma confirmação do con
     if (path.endsWith("commands")) { posted = route.request().postDataJSON(); await route.fulfill({ json: { tenantId, entityType: "product", entity: rows[0] } }); }
     else await route.fulfill({ json: path.endsWith("/me") ? { user: { id: "manager", name: "Gestora", email: "owner@example.test" }, tenants: [{ id: tenantId, name: "Loja", role: "owner", permissions: rights }] } : { tenantId, items: rows, total: 3, limit: 100, offset: 0 } });
   });
-  await page.goto("/operacao/"); await page.getByRole("button", { name: "Precificar pendentes", exact: true }).click();
+  await page.goto("/produtos/"); await page.getByRole("button", { name: "Precificar pendentes", exact: true }).click();
   const modal = page.getByRole("dialog");
   await modal.getByLabel("Acréscimo sobre a compra (%)", { exact: true }).fill("50");
   await modal.getByRole("button", { name: "Salvar preços do lote", exact: true }).click();
@@ -95,7 +95,7 @@ test("OP-UI06 cadastrar cliente no contexto da OS preserva equipamento e selecio
     const path = new URL(route.request().url()).pathname;
     await route.fulfill({ json: path.endsWith("/me") ? { user: { id: "manager", name: "Gestora", email: "owner@example.test" }, tenants: [{ id: tenantId, name: "Loja", role: "owner", permissions: rights }] } : path.endsWith("customers") && route.request().method() === "POST" ? { tenantId, customer } : { tenantId, items: [], total: 0, limit: 100, offset: 0 } });
   });
-  await page.goto("/operacao/"); await page.getByRole("button", { name: "OS", exact: true }).click();
+  await page.goto("/produtos/"); await page.getByRole("link", { name: "Ordens de serviço", exact: true }).click();
   await page.getByRole("button", { name: "Nova OS", exact: true }).click();
   const main = page.getByRole("dialog", { name: "Nova OS", exact: true });
   await main.getByLabel("Equipamento", { exact: true }).fill("iPhone preenchido");
@@ -137,7 +137,7 @@ test("OP-UI08 área conectada não lê nem regrava o armazenamento da demonstra�
     Storage.prototype.getItem = function(key: string) { if (key === "sistem:prototype:v1") (window as any).__demoReads++; return original.call(this, key); };
   });
   await page.route("http://127.0.0.1:4000/**", (route) => route.fulfill({ json: { user: { id: "viewer", name: "Consulta", email: "viewer@example.test" }, tenants: [{ id: tenantId, name: "Loja", role: "viewer", permissions: [] }] } }));
-  await page.goto("/operacao/"); await expect(page.getByText("Seu perfil não permite acessar a operação.", { exact: true })).toBeVisible();
+  await page.goto("/produtos/"); await expect(page.getByText("Seu perfil não tem permissão para acessar este módulo.", { exact: true })).toBeVisible();
   expect(await page.evaluate(() => (window as any).__demoReads)).toBe(0);
   expect(await page.evaluate(() => localStorage.getItem("sistem:prototype:v1"))).toBe("legado-corrompido-preservado");
 });
@@ -150,7 +150,7 @@ test("OP-UI09 dúvida do XML mostra nome e SKU do candidato sem exigir reconheci
     if (path.endsWith("purchase-plan")) { const doc = route.request().postDataJSON().document; body = { tenantId, candidates: [{ id: product.id, name: product.name, sku: product.sku }], plan: { lines: doc.items.map((source: any) => ({ source, name: "Capa", category: "Capas", attributes: {}, resolution: "review", candidates: [product.id], conversion: 1, reason: "Confira a variacao" })) } }; }
     await route.fulfill({ json: body });
   });
-  await page.goto("/operacao/"); await page.getByRole("button", { name: "Compras", exact: true }).click();
+  await page.goto("/produtos/"); await page.getByRole("link", { name: "Compras", exact: true }).click();
   const xml = '<NFe><infNFe Id="QA-review"><ide><nNF>1</nNF></ide><emit><xNome>Fornecedor</xNome></emit><det nItem="1"><prod><cProd>A</cProd><xProd>CAPA</xProd><NCM>39269090</NCM><uCom>UN</uCom><qCom>1</qCom><vUnCom>10.00</vUnCom><vProd>10.00</vProd></prod></det></infNFe></NFe>';
   await page.getByLabel("Arquivo XML", { exact: true }).setInputFiles({ name: "duvida.xml", mimeType: "text/xml", buffer: Buffer.from(xml) });
   const choices = page.getByRole("combobox", { name: "Ação para CAPA", exact: true });

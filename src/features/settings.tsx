@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/components/demo-link";
 import { useState } from "react";
 import {
   ArrowRight,
@@ -185,12 +185,12 @@ export function SettingsPage() {
         <Panel title="Próximas integrações">
           <div className="detail-card-content">
             <p className="body-copy">
-              Autenticação, permissões, bancos por empresa, validação fiscal,
-              emissão de notas e assinatura ainda dependem do backend. O login é
-              apenas uma apresentação do acesso.
+              Esta demonstração usa exemplos locais. O sistema principal já tem
+              login real, permissões e dados compartilhados por empresa.
+              Emissão fiscal e assinatura continuam pendentes.
             </p>
             <Link className="text-link" href="/entrar/">
-              Conhecer a tela de acesso <ArrowRight size={15} />
+              Acessar o sistema real <ArrowRight size={15} />
             </Link>
           </div>
         </Panel>

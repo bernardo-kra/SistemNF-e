@@ -1,8 +1,8 @@
-# Sistem — protótipo navegável
+# Sistem — gestão da loja
 
 Next.js 16.4.2, React 19.3.1, TypeScript e CSS. Interface em português para uma loja de eletrônicos com assistência técnica.
 
-**Homologação online:** [Abrir operação conectada](https://sistemnf-e.onrender.com/operacao/). Publicação validada em 27/10/2026 no Render Free com PostgreSQL Neon e login Better Auth. Dados compartilhados ficam em `/operacao/`; a demonstração da página inicial continua independente. Resultado e limites no [registro da publicação](docs/13-backend-primeiro-recorte.md).
+**Homologação online:** [Abrir Sistem](https://sistemnf-e.onrender.com/). A navegação principal usa login real em `/entrar/`, Better Auth e PostgreSQL Neon. Produtos, estoque, clientes, vendas, OS, compras, financeiro e equipe compartilham sessão e empresa. `/operacao/` redireciona para Produtos. A demonstração fica explicitamente em `/demo/`; módulos sem backend mostram `Em preparação`. Estado e evidências da unificação no [registro UNI](docs/15-auditoria-acessos-e-filtros.md).
 
 ## Executar no Windows / PowerShell
 
@@ -13,7 +13,7 @@ npm.cmd install
 npm.cmd run dev
 ```
 
-Abrir `http://127.0.0.1:3000`. O sufixo `.cmd` evita o bloqueio de `npm.ps1` pela política do PowerShell, sem alterar a configuração do computador. Em outros shells, `npm install` e `npm run dev` funcionam normalmente.
+Abrir `http://127.0.0.1:3000`. A navegação principal exige a API configurada em `http://127.0.0.1:4000`; para explorar somente exemplos locais, abrir `http://127.0.0.1:3000/demo/`. O sufixo `.cmd` evita o bloqueio de `npm.ps1` pela política do PowerShell, sem alterar a configuração do computador. Em outros shells, `npm install` e `npm run dev` funcionam normalmente.
 
 Para homologação com dados compartilhados, a aplicação pode servir interface e API no mesmo endereço usando `npm.cmd run build` e `npm.cmd start` (localmente em `http://127.0.0.1:4000`). A configuração atual usa PostgreSQL no Neon e mantém Better Auth; Neon Auth gerenciado não é o login do Sistem. Preparação dos bancos, criação explícita do gestor, variáveis privadas e configuração do Render estão no [guia do backend](server/README.md#neon-e-render-homologação). Sem configuração de backend, `start` oferece somente a demonstração e a prontidão da API retorna 503. Receber apenas `DATABASE_URL` sem preparar os bancos gera erro de inicialização, sem apresentar integração fictícia.
 
@@ -29,7 +29,9 @@ Os testes de navegador usam Google Chrome instalado (`channel: chrome`). O Playw
 
 O comando de build também executa `postbuild`, que adiciona nomes portáveis aos arquivos de segmentos exportados incorretamente em builds Windows. A correção é local aos artefatos, preserva os originais e foi motivada por um [problema reproduzido e registrado no Next.js](https://github.com/vercel/next.js/issues/92339). Há três testes dessa normalização em `checks/`, incluídos em `npm.cmd test`. Remover a correção somente após verificar uma versão do Next que exporte os caminhos corretamente.
 
-## Funcionalidades demonstráveis
+## Funcionalidades demonstráveis em `/demo/`
+
+A lista abaixo descreve o ensaio local, com dados fictícios. A navegação principal oferece somente os recursos já conectados, com permissões de servidor. Relatórios completos, fiscal e parceiros ainda estão em preparação nessa navegação.
 
 - Painel com indicadores calculados a partir dos registros.
 - Clientes e produtos: busca, filtros, criação e edição.
@@ -46,9 +48,9 @@ O comando de build também executa `postbuild`, que adiciona nomes portáveis ao
 - Importação XML em uma página: vínculos de vários fornecedores para o mesmo SKU, sugestões locais de nome/atributos, novos cadastros em lote e decisões apenas sobre ambiguidades. Somente cadastrar mantém estoque zero; Registrar recebimento confirma quantidades e conversões, com parciais e proteção contra repetição. Novos produtos sem preço ficam pendentes e não podem ser vendidos até sua definição.
 - Área fiscal: configuração do emitente, revisão de produtos/serviço e dados fiscais do cliente. Preparação vinculada à venda ou OS, cópia dos dados, fila, rejeição/nova tentativa, resultado desconhecido/consulta e cancelamento simulados; sem emissão ou consulta reais.
 - Configurações: exportação JSON e restauração dos exemplos com confirmação.
-- Busca global, navegação responsiva, modais nativos e acesso demonstrativo em `/entrar/`.
+- Busca global demonstrativa, navegação responsiva e modais nativos. `/entrar/` é exclusivamente o login real; a demonstração não exige autenticação fictícia.
 
-## Dados e limites
+## Dados e limites da demonstração
 
 Usar apenas informações fictícias. O armazenamento é local ao navegador e não oferece autenticação, isolamento real de empresas, sincronização entre computadores ou backup. Os contatos de parceiros adicionados ficam somente na sessão da tela, conforme aviso nela.
 

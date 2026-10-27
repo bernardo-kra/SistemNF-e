@@ -1,21 +1,18 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Field, Modal } from "@/components/ui";
+import { Field, Modal, PageHeader } from "@/components/ui";
 import { accessBase, accessDate, accessRequest, AccessError, type AccessAudit, type AccessIdentity, type AccessMember, type AccessOptions, type AccessPage, type AccessRole } from "@/lib/access-api";
+import { useWorkspace } from "./workspace-session";
 import styles from "./access-control.module.css";
 
 const roles = { owner: "Gestor", operator: "Atendimento", viewer: "Consulta" };
 const message = (error: unknown) => error instanceof AccessError ? error.message : "Não foi possível concluir a operação. Tente novamente.";
 
 export function AccessControl() {
-  const [phase, setPhase] = useState<"loading" | "login" | "ready" | "error">("loading");
-  const [identity, setIdentity] = useState<AccessIdentity | null>(null);
-  const [tenant, setTenant] = useState("");
+  const { phase, identity, tenant, refresh: loadIdentity, handleError } = useWorkspace();
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [busy, setBusy] = useState(false);
   const [accessDenied, setAccessDenied] = useState(false);
   const [options, setOptions] = useState<AccessOptions | null>(null);
   const [members, setMembers] = useState<AccessPage<AccessMember> | null>(null);
@@ -40,29 +37,14 @@ export function AccessControl() {
     setMembers(null); setAudit(null); setOptions(null); setEditor(null); setNotice("");
     setQuery(""); setDebounced(""); setStatus("all"); setSort("name"); setDateField("created"); setFrom(""); setTo(""); setOffset(0); setAuditOffset(0);
   }, []);
-  const expire = useCallback(() => { generation.current++; clearData(); setIdentity(null); setTenant(""); setPhase("login"); setError("Entre novamente para continuar."); }, [clearData]);
-  const loadIdentity = useCallback(async () => {
-    const tag = ++generation.current;
-    clearData(); setAccessDenied(false); setIdentity(null); setTenant(""); setPhase("loading"); setError("");
-    try {
-      const data = await accessRequest<AccessIdentity>("/api/v1/me");
-      if (tag !== generation.current) return;
-      if (!data.user?.id || !Array.isArray(data.tenants)) throw new AccessError(503);
-      setIdentity(data); setTenant(data.tenants.length === 1 ? data.tenants[0].id : ""); setPhase("ready");
-    } catch (failure) {
-      if (tag !== generation.current) return;
-      setPhase(failure instanceof AccessError && failure.status === 401 ? "login" : "error");
-      setError(failure instanceof AccessError && failure.status === 401 ? "" : message(failure));
-    }
-  }, [clearData]);
-  useEffect(() => { void loadIdentity(); return () => { generation.current++; }; }, [loadIdentity]);
+  useEffect(() => () => { generation.current++; }, []);
   useEffect(() => { const timer = setTimeout(() => setDebounced(query), 300); return () => clearTimeout(timer); }, [query]);
 
   const dataFailure = useCallback((failure: unknown) => {
-    if (failure instanceof AccessError && failure.status === 401) { expire(); return; }
+    if (failure instanceof AccessError && failure.status === 401) { generation.current++; clearData(); handleError(failure); return; }
     if (failure instanceof AccessError && failure.status === 403) { generation.current++; clearData(); setAccessDenied(true); }
     setError(message(failure));
-  }, [expire, clearData]);
+  }, [handleError, clearData]);
 
   useEffect(() => {
     setOptions(null); setAudit(null); setEditor(null);
@@ -97,37 +79,11 @@ export function AccessControl() {
     return () => controller.abort();
   }, [tenant, canManage, phase, revision, auditOffset, dataFailure]);
 
-  const changeCompany = (next: string) => {
-    generation.current++; clearData(); setAccessDenied(false); setError(""); setTenant(next);
-  };
   const closeEditor = () => { setEditor(null); requestAnimationFrame(() => opener.current?.focus()); };
   const openEditor = (event: React.MouseEvent<HTMLButtonElement>, member: AccessMember | "new") => { opener.current = event.currentTarget; setEditor(member); setNotice(""); };
 
-  async function signOut() {
-    setBusy(true); setError("");
-    const tag = generation.current;
-    try {
-      await accessRequest("/api/auth/sign-out", { method: "POST", body: {} });
-      if (tag !== generation.current) return;
-      generation.current++; clearData(); setIdentity(null); setTenant(""); setPhase("login");
-    } catch (failure) { if (tag === generation.current) dataFailure(failure); }
-    finally { setBusy(false); }
-  }
-
   const identify = (id: string) => members?.items.find((item) => item.id === id)?.name ?? (identity?.user.id === id ? identity.user.name : `Conta ${id}`);
-  return <div className={styles.page}>
-    <header className={styles.header}>
-      <div><Link href="/acessos/" className={styles.brand}>sistem.</Link><small>Área conectada da empresa</small></div>
-      {identity && <div className={styles.identity}><strong>{identity.user.name}</strong><Link href="/operacao/">Operação</Link><button className="button button-secondary" disabled={busy} onClick={() => void signOut()}>Sair</button></div>}
-    </header>
-    <main className={styles.content}>
-      <div className={styles.heading}><div><span className={styles.eyebrow}>Gestão de funcionários</span><h1>Equipe e acessos</h1><p>Contas individuais, permissões e histórico de alterações da equipe.</p></div>
-        {identity && <Field label="Empresa"><select aria-label="Empresa" value={tenant} onChange={(event) => changeCompany(event.target.value)}><option value="">Selecione a empresa</option>{identity.tenants.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>}
-      </div>
-      {phase === "loading" && <p role="status">Conectando à sua conta…</p>}
-      {phase === "error" && <div className={styles.login}><p className={styles.error} role="alert">{error}</p><button className="button button-primary" onClick={() => void loadIdentity()}>Tentar novamente</button></div>}
-      {phase === "login" && <LoginForm error={error} onSigned={loadIdentity} />}
-      {phase === "ready" && <>
+  return <><PageHeader eyebrow="GESTÃO DA EQUIPE" title="Equipe e acessos" description="Contas individuais, permissões e histórico da equipe." />
         {error && <div className={styles.error} role="alert">{error} <button type="button" className="button button-secondary" onClick={() => void loadIdentity()}>Atualizar acessos</button></div>}
         {notice && <p className={styles.notice} role="status">{notice}</p>}
         {!identity?.tenants.length && <p className={styles.empty}>Sua conta não possui vínculo ativo com uma empresa.</p>}
@@ -157,17 +113,14 @@ export function AccessControl() {
             {audit && <div className={styles.footer}><span>{audit.total} alterações registradas</span><div><button disabled={auditOffset === 0} onClick={() => setAuditOffset(Math.max(0, auditOffset - 25))}>Mais recentes</button><button disabled={auditOffset + 25 >= audit.total} onClick={() => setAuditOffset(auditOffset + 25)}>Mais antigas</button></div></div>}
           </section>
         </>}
-      </>}
-      <p className={styles.notice}>Os acessos valem para clientes e para a <Link href="/operacao/">operação conectada</Link>. As telas da <Link href="/">demonstração</Link> continuam independentes.</p>
       {editor && options && <MemberEditor key={`${tenant}:${editor === "new" ? "new" : editor.id}`} tenant={tenant} member={editor === "new" ? null : editor} options={options} onClose={closeEditor} onUnauthorized={dataFailure} onSaved={() => { closeEditor(); setError(""); setNotice("Acessos salvos."); setRevision((value) => value + 1); }} />}
-    </main>
-  </div>;
+  </>;
 }
 
 export function LoginForm({ error, onSigned }: { error: string; onSigned: () => Promise<void> }) {
   const [email, setEmail] = useState(""), [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false), [failure, setFailure] = useState("");
-  return <section className={styles.login}><h2>Entrar na empresa</h2><p>Use sua conta individual para acessar a equipe.</p><form className={styles.form} onSubmit={async (event) => {
+  return <section className={styles.loginEmbedded}><h2>Entrar no Sistem</h2><p>Use sua conta individual para acessar sua empresa.</p><form className={styles.form} onSubmit={async (event) => {
     event.preventDefault(); if (busy) return; setBusy(true); setFailure("");
     try { await accessRequest("/api/auth/sign-in/email", { method: "POST", body: { email, password } }); setPassword(""); await onSigned(); }
     catch (issue) { setFailure(message(issue)); }

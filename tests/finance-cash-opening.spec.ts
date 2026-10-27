@@ -46,7 +46,7 @@ async function start(page: Page, state = fixture()) {
   await page.addInitScript(({ initial, key }) => {
     if (!localStorage.getItem(key)) localStorage.setItem(key, JSON.stringify(initial));
   }, { initial: state, key: storageKey });
-  await page.goto("/financeiro/");
+  await page.goto("/demo/financeiro/");
   await page.getByRole("tab", { name: "Parcelas", exact: true }).click();
   await page.getByRole("button", { name: "Receber Entrada de Venda #400", exact: true }).click();
   const dialog = page.getByRole("dialog");

@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import "./tokens.css";
 import "./globals.css";
+import { WorkspaceSession } from "@/features/workspace-session";
 
 export const metadata: Metadata = {
   title: "Sistem · Gestão e assistência",
   description:
-    "Protótipo de gestão para lojas de eletrônicos e assistência de TI.",
+    "Gestão para lojas de eletrônicos e assistência de TI.",
   robots: { index: false, follow: false },
 };
 
@@ -15,7 +16,7 @@ export default function RootLayout({
   return (
     <html lang="pt-BR" data-scroll-behavior="smooth">
       <body>
-        {children}
+        <WorkspaceSession>{children}</WorkspaceSession>
       </body>
     </html>
   );

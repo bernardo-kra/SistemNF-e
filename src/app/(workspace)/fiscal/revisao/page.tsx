@@ -1,4 +1,2 @@
-import { FiscalReviewPage } from "@/features/fiscal/review";
-export default function Page() {
-  return <FiscalReviewPage />;
-}
+import { WorkspacePending } from "@/features/workspace-home";
+export default function Page() { return <WorkspacePending title="Revisão fiscal" />; }

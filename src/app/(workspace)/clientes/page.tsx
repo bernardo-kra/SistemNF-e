@@ -1,4 +1,2 @@
-import { CustomersPage } from "@/features/customers";
-export default function Page() {
-  return <CustomersPage />;
-}
+import { WorkspaceCustomers } from "@/features/workspace-customers";
+export default function Page() { return <WorkspaceCustomers />; }

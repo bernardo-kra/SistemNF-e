@@ -6,7 +6,7 @@ import {
 
 test("LOG-01/02: comando rejeitado preserva estado e código visível corresponde à ocorrência exportada", async ({ page }) => {
   await seedDiagnosticsBrowser(page);
-  await page.goto("/estoque/");
+  await page.goto("/demo/estoque/");
   await expect(page.getByRole("row").filter({ hasText: "MOU-LOG" })).toBeVisible();
   const before = await savedOperational(page);
   await rejectedStockCommand(page);
@@ -28,7 +28,7 @@ test("LOG-01/02: comando rejeitado preserva estado e código visível correspond
 
 test("LOG-03/07: erro global e rejeição são controlados uma vez e filtros/recarga não duplicam", async ({ page }) => {
   await seedDiagnosticsBrowser(page);
-  await page.goto("/diagnostico/");
+  await page.goto("/demo/diagnostico/");
   await expect(page.getByRole("heading", { name: "Diagnóstico", exact: true })).toBeVisible();
   // O HTML do título chega antes da hidratação; disparar só com o módulo pronto.
   await expect(page.getByRole("button", { name: "Exportar diagnóstico", exact: true })).toBeEnabled();
@@ -83,7 +83,7 @@ test("LOG-05: diagnóstico sem permissão usa memória e não bloqueia sucesso n
 test("LOG-06: recuperação operacional falha preserva bytes, bloqueia mutação e exporta só catálogo", async ({ page }) => {
   const original = '{ arquivo original CPF-SEGREDO-RECUPERACAO';
   await page.addInitScript((raw) => localStorage.setItem("sistem:prototype:v1", raw), original);
-  await page.goto("/diagnostico/");
+  await page.goto("/demo/diagnostico/");
   await expect(page.getByRole("heading", { name: "Diagnóstico", exact: true })).toBeVisible();
   const exported = await diagnosticsPackage(page);
   expect(exported.events.some((event: { code: string }) => event.code === "STORAGE_READ_FAILED")).toBe(true);
@@ -105,7 +105,7 @@ test("LOG-06: gravação operacional negada registra código controlado sem copi
       original.call(this, key, value);
     };
   });
-  await page.goto("/diagnostico/");
+  await page.goto("/demo/diagnostico/");
   await expect(page.getByRole("heading", { name: "Diagnóstico", exact: true })).toBeVisible();
   const result = await diagnosticsPackage(page);
   expect(result.events.some((event: { code: string }) => event.code === "STORAGE_WRITE_FAILED")).toBe(true);

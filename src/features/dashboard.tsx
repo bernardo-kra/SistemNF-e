@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/components/demo-link";
 import { useFinancialDate } from "@/components/use-financial-date";
 import {
   Plus,

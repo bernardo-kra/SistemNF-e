@@ -1,4 +1,2 @@
-import { Dashboard } from "@/features/dashboard";
-export default function Page() {
-  return <Dashboard />;
-}
+import { WorkspaceHome } from "@/features/workspace-home";
+export default function Page() { return <WorkspaceHome />; }

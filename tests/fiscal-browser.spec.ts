@@ -22,7 +22,7 @@ async function fillAddress(scope: Page | Locator) {
     .fill("3550308");
 }
 async function createDraft(page: Page) {
-  await page.goto("/fiscal/?source=sale:s400");
+  await page.goto("/demo/fiscal/?source=sale:s400");
   await page.getByRole("button", { name: "Criar rascunho simulado" }).click();
   await expect(page.getByRole("dialog")).toContainText("SIM-000001");
 }
@@ -37,7 +37,7 @@ async function processDocument(page: Page, outcome: string) {
 test("preflight incompleto impede criar documento e oferece caminhos de correção", async ({
   page,
 }) => {
-  await page.goto("/fiscal/?source=sale:s400");
+  await page.goto("/demo/fiscal/?source=sale:s400");
   await expect(page.getByRole("dialog")).toContainText("pendências");
   await expect(
     page.getByRole("button", { name: "Criar rascunho simulado" }),
@@ -54,7 +54,7 @@ test("preflight incompleto impede criar documento e oferece caminhos de correç�
 test("formulários fiscais aceitam cadastro parcial, rejeitam DV inválido e persistem os dados", async ({
   page,
 }) => {
-  await page.goto("/fiscal/configuracao/");
+  await page.goto("/demo/fiscal/configuracao/");
   await page.getByLabel("CNPJ do emitente").fill("12ABC34501DE36");
   await page.getByRole("button", { name: "Salvar configuração" }).click();
   await expect(page.locator("form").getByRole("alert")).toContainText(/CNPJ/);
@@ -78,7 +78,7 @@ test("formulários fiscais aceitam cadastro parcial, rejeitam DV inválido e per
   await expect(page.getByLabel("Município", { exact: true })).toHaveValue(
     "São Paulo",
   );
-  await page.goto("/fiscal/revisao/");
+  await page.goto("/demo/fiscal/revisao/");
   await page.getByRole("button", { name: "Revisar fiscal de MOU-LOG" }).click();
   await page.getByLabel("Código de origem").selectOption("0");
   await page.getByLabel("CFOP da saída").fill("5102");
@@ -93,7 +93,7 @@ test("formulários fiscais aceitam cadastro parcial, rejeitam DV inválido e per
   await expect(page.getByLabel("Código do serviço (a revisar)")).toHaveValue(
     "CODIGO-DEMO",
   );
-  await page.goto("/clientes/");
+  await page.goto("/demo/clientes/");
   await page.getByRole("button", { name: "Novo cliente", exact: true }).click();
   await page
     .getByLabel("Nome / razão social")
@@ -223,7 +223,7 @@ test("atalho da OS prepara serviço e destaca peças excluídas", async ({
   page,
 }) => {
   await seedBrowser(page);
-  await page.goto("/ordens/?os=o1040");
+  await page.goto("/demo/ordens/?os=o1040");
   await page.getByRole("link", { name: "Preparar NFS-e simulada" }).click();
   await expect(page.getByRole("dialog")).toContainText(/Peças de R\$\s*220,00/);
   await page.getByRole("button", { name: "Criar rascunho simulado" }).click();
@@ -259,7 +259,7 @@ test("migração do navegador preserva v1 e telas fiscais cabem em 390px", async
     "/fiscal/configuracao/",
     "/fiscal/revisao/",
   ]) {
-    await page.goto(path);
+    await page.goto(`/demo${path}`);
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
     expect(
       await page.evaluate(

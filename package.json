@@ -13,7 +13,7 @@
     "smoke:neon": "npm --prefix server run smoke:neon",
     "postbuild": "node scripts/normalize-static-segments.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "node --test checks/static-export.test.mjs checks/api-origin.test.mjs && playwright test"
+    "test": "node --test checks/static-export.test.mjs checks/api-origin.test.mjs checks/workspace-routing.test.mjs && playwright test"
   },
   "dependencies": {
     "@neon/config": "^1.9.5",

@@ -30,7 +30,7 @@ export async function diagnosticsPackage(page: Page) {
   return JSON.parse(await downloadedText(await download));
 }
 export async function rejectedStockCommand(page: Page) {
-  await page.goto("/estoque/?token=SEGREDO-URL-123");
+  await page.goto("/demo/estoque/?token=SEGREDO-URL-123");
   const row = page.getByRole("row").filter({ hasText: "MOU-LOG" });
   await expect(row).toBeVisible();
   await row.getByRole("button", { name: "Entrada", exact: true }).click();

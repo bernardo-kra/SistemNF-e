@@ -19,7 +19,7 @@ export async function startContextual(page: Page, route = "/ordens/", input: unk
   await page.addInitScript(({ key, raw }) => {
     if (!localStorage.getItem(key)) localStorage.setItem(key, raw);
   }, { key: contextualKey, raw: initial });
-  await page.goto(route);
+  await page.goto(route.startsWith("/demo/") ? route : `/demo${route}`);
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   return initial;
 }

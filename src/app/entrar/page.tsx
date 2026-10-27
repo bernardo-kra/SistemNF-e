@@ -1,5 +1,4 @@
-import { LoginPage } from "@/features/settings";
-import { DemoProvider } from "@/lib/demo-store";
+import { WorkspaceLogin } from "@/features/workspace-login";
 export default function Page() {
-  return <DemoProvider><LoginPage /></DemoProvider>;
+  return <WorkspaceLogin />;
 }

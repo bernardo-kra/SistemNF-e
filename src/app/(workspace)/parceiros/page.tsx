@@ -1,4 +1,2 @@
-import { PartnersPage } from "@/features/settings";
-export default function Page() {
-  return <PartnersPage />;
-}
+import { WorkspacePending } from "@/features/workspace-home";
+export default function Page() { return <WorkspacePending title="Parceiros" />; }

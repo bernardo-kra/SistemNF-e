@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/components/demo-link";
 import { useState } from "react";
 import { ArrowLeft, Pencil, Save, Wrench } from "lucide-react";
 import { useDemo } from "@/lib/demo-store";
