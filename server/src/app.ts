@@ -11,6 +11,7 @@ import { createAccountsService, type AccountContext } from "./accounts.js";
 import { executeOperation, listOperations, operationHistory, purchasePlan, commandPermissions, resourcePermission } from "./operations.js";
 import { readFinance } from "./finance.js";
 import { registerFrontend } from "./web-host.js";
+import { operationalPoolOptions } from "./operational-pool.js";
 
 export type BuildOptions = { config: ApiConfig; controlPool: Pool; logger?: FastifyServerOptions["logger"]; frontendRoot?: string };
 
@@ -76,7 +77,7 @@ export async function buildApp(options: BuildOptions): Promise<FastifyInstance> 
     if (!url) throw unavailable();
     let pool = pools.get(key);
     if (!pool) {
-      pool = new Pool({ connectionString: url, max: 2, connectionTimeoutMillis: 800, idleTimeoutMillis: 10000, statement_timeout: 5000 });
+      pool = new Pool(operationalPoolOptions(url));
       pool.on("error", logDatabaseFailure);
       pools.set(key, pool);
     }
