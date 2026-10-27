@@ -214,6 +214,51 @@ Comprovantes internos identificam a loja e a origem, discriminam alocações e s
 
 F1–F3 não são promessa de uma sprint. Antes de produção, precisam de backend transacional, identidade, isolamento e recuperação. A simulação do front pode anteceder essas integrações, desde que mostre claramente quais confirmações são fictícias/manuais.
 
+## Crédito combinado — solicitação de 26/10/2026
+
+**Estado: requisito solicitado; não implementado.** O usuário escolheu combinar consulta externa de CPF/CNPJ com controle interno de limite e atrasos da loja. O cadastro atual do backend ainda não contém CPF/CNPJ; parcelas e recebimentos continuam no protótipo local, enquanto vendas e OS conectadas declaram financeiro não integrado. Não calcular crédito disponível com valores da demonstração nem apresentar ausência de histórico como ausência de dívida.
+
+Esta solicitação antecipa o recorte básico de crédito que aparecia em F5: primeiro levar acordos, parcelas, pagamentos, alocações, recibos e caixa mínimo ao backend; depois controlar limite/exposição e integrar a consulta externa. Impressão/leitor e peças da OS continuam no backlog, sem serem dependências do crédito. O financeiro precisa preservar os invariantes do documento 11, sem importar valores locais ou legados automaticamente.
+
+### Jornada proposta para o balcão
+
+Quem atende seleciona o cliente e a condição de pagamento na própria venda. O sistema reaproveita identidade da empresa, dados do cliente, saldo financeiro e permissões. Para crediário próprio, mostra limite concedido, compromissos em aberto, valor vencido, disponível e valor da nova operação a financiar. Condições à vista e parcelamento pela operadora de cartão têm tratamentos próprios; a consulta de crediário não deve aparecer como etapa obrigatória de toda venda.
+
+Exemplo apenas de cálculo: limite de R$ 1.500,00, exposição confirmada de R$ 600,00 e nenhuma reserva adicional deixam R$ 900,00 disponíveis. Venda de R$ 1.200,00 com entrada efetivamente recebida de R$ 300,00 financia R$ 900,00. Entrada apenas prometida não pode liberar esse valor; a reserva/exposição e o acordo precisam refletir o fato real e impedir duas vendas concorrentes de usar o mesmo disponível.
+
+Proposta de interação: aproveitar consulta ainda válida e compatível com cliente/empresa/finalidade; quando uma nova consulta for necessária, uma ação na venda e retorno no mesmo formulário. CPF/CNPJ ausente é solicitado no contexto somente quando necessário, sem perder o carrinho. Resultado em andamento não trava a edição; consulta externa não gera pagamento, estoque ou aprovação por si só. Concluir a venda com suas condições deve coordenar os efeitos autorizados, sem obrigar o atendente a abrir cadastro, financeiro e crédito em telas separadas.
+
+### Controle e decisões propostos
+
+- Limite é concedido por perfil autorizado e tem histórico de responsável, instante e motivo. Sem limite definido, mostrar pendência; não inventar um valor padrão.
+- Disponível considera exposição financeira e reservas de crédito da empresa, sem contar o mesmo compromisso duas vezes. Pagamento confirmado reduz a exposição uma vez; parcela criada, promessa de entrada, agendamento ou timeout não equivalem a recebimento. Cancelamento, estorno e renegociação precisam de efeitos próprios e rastreáveis.
+- Resultado externo guarda provedor, referência, instante, validade aplicável e resumo autorizado. Histórico interno e informação externa permanecem identificáveis; score não vira automaticamente um limite ou aprovação sem política explícita da loja.
+- Consulta, leitura do resultado, alteração de limite e aprovação de exceção terão direitos separados no servidor. Exceção exige motivo e preserva a regra/resultado que a originaram. Não enviar CPF/CNPJ, relatório bruto ou credenciais para logs gerais.
+- Consulta vencida, pendente, indisponível ou com resultado desconhecido não vira resultado favorável. Preservar o carrinho e oferecer recuperação da tentativa; evitar repetição automática de consulta potencialmente cobrada. Idempotência, recuperação e efeitos colaterais devem seguir o contrato do provedor escolhido, sem prometer cobrança única quando a API não garantir isso.
+
+### Dependências ainda abertas
+
+Escolher provedor e cobertura PF/PJ; confirmar contratação, habilitação, credenciais e custos, titular do contrato (loja ou plataforma), retenção/validade e regras de uso dos dados. Definir com o negócio limite, política de atraso e autoridade para exceções, sem adotar corte arbitrário de score. Esta documentação não autoriza contratar, consultar documentos reais, gastar ou enviar mensagens.
+
+Há APIs oficiais de [relatório PF da Serasa Experian](https://developer.serasaexperian.com.br/api/relatorio-basico-pf) e de [consulta Serasa pelo Asaas](https://docs.asaas.com/reference/realizar-consulta), referências verificadas em 26/10/2026, sem seleção comercial. O Asaas documenta habilitação da conta, timeout de pelo menos 30 segundos e envio do PDF ao e-mail da conta; esses efeitos precisam ser considerados antes de escolher esse caminho. Não foi executada consulta. Requisitos de finalidade, acesso, transparência e direitos do titular devem ser definidos conforme o uso concreto, apoiados nas [orientações da ANPD](https://www.gov.br/anpd/pt-br/acesso-a-informacao/perguntas-frequentes), sem pressupor que um checkbox genérico resolve todo tratamento.
+
+### Critérios prévios para implementação
+
+| ID | Cenário | Resultado esperado |
+| --- | --- | --- |
+| CR-01 | Mesmo cliente ou ID acessado por outra empresa ou sem direito. | Negar consulta/leitura/alteração sem expor documento, saldo ou relatório. |
+| CR-02 | Limite ausente, exposição desconhecida ou consulta indisponível. | Mostrar pendência específica, preservar carrinho e não anunciar aprovação. |
+| CR-03 | Duas vendas concorrentes disputam o último limite disponível. | Somente o conjunto permitido confirma; exposição/reserva/acordo não duplicam nem excedem a política. |
+| CR-04 | Clique duplo, timeout ou retentativa de consulta. | Manter identidade da tentativa e recuperar resultado quando possível; não disparar nova consulta automaticamente diante de resultado desconhecido. |
+| CR-05 | Consulta existente válida, vencida ou de outra empresa/documento. | Reutilizar apenas a compatível segundo contrato/política; as demais não autorizam a nova operação. |
+| CR-06 | Pagamento parcial, repetido, estornado e entrada apenas prometida. | Exposição recalculada pelo fato financeiro correto, uma vez; dinheiro/estoque não surgem da análise de crédito. |
+| CR-07 | Funcionário tenta mudar limite, liberar exceção ou forjar autor/data. | API aplica direitos atuais; servidor registra autor/instante/motivo e preserva resultado anterior. |
+| CR-08 | CPF/CNPJ ausente e consulta em andamento. | Cadastro no contexto conserva cliente/carrinho; edição permanece disponível; documentos não aparecem em logs gerais. |
+| CR-09 | Cliente compra à vista ou paga parcelado pela operadora. | Não impor consulta de crediário próprio como etapa genérica; aplicar a modalidade correta. |
+| CR-10 | Caminho comum com dados conhecidos. | Sem redigitação nem navegação adicional; cálculo interno automático, uma ação para consulta nova quando necessária e uma confirmação da operação. Medir chamadas/latência no ambiente escolhido, sem SLO inventado. |
+
+Antes de alterar comportamento, escrever/executar os testes pertinentes e comprovar as falhas esperadas. Estes são critérios documentais, não testes executados nem uma integração entregue.
+
 ## Critérios de aceite e QA
 
 | ID | Cenário | Resultado obrigatório |

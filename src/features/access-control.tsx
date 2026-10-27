@@ -203,6 +203,7 @@ function MemberEditor({ tenant, member, options, onClose, onSaved, onUnauthorize
       "stock.read": ["products.read"], "stock.receive": ["stock.read"], "sales.read": ["products.read", "customers.read"], "sales.create": ["sales.read", "stock.read"], "sales.deliver": ["sales.read", "stock.read"],
       "orders.read": ["customers.read"], "orders.create": ["orders.read"], "orders.update": ["orders.read"], "orders.advance": ["orders.read"], "orders.deliver": ["orders.read"],
       "purchases.read": ["products.read", "products.cost.read"], "purchases.import": ["purchases.read"], "purchases.receive": ["purchases.read", "stock.receive"],
+      "finance.agreements.create": ["finance.read", "customers.read"], "finance.receive": ["finance.read", "customers.read"], "finance.accounts.manage": ["finance.read"], "finance.cash.manage": ["finance.read"],
     };
     const enable = (permission: string) => { next[permission] = true; for (const dependency of dependencies[permission] ?? []) enable(dependency); };
     if (checked) enable(id);

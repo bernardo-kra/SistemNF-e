@@ -11,3 +11,4 @@ next-env.d.ts
 test-*.png
 server/.local/
 server/dist/
+.neon

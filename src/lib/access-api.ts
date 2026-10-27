@@ -1,3 +1,5 @@
+import { resolveApiOrigin } from "../../shared/api-origin.mjs";
+
 export type AccessRole = "owner" | "operator" | "viewer";
 export type AccessCompany = { id: string; name: string; role: AccessRole; permissions: string[] };
 export type AccessIdentity = { user: { id: string; name: string; email: string }; tenants: AccessCompany[] };
@@ -13,14 +15,8 @@ export class AccessError extends Error {
 }
 
 function apiOrigin(): string {
-  const configured = process.env.NEXT_PUBLIC_API_URL;
-  const local = ["127.0.0.1", "localhost", "[::1]"].includes(window.location.hostname);
-  if (!configured && local) return "http://127.0.0.1:4000";
   try {
-    const url = new URL(configured ?? "");
-    if (url.username || url.password || url.search || url.hash || url.pathname !== "/" ||
-      !(url.protocol === "https:" || (local && url.protocol === "http:" && ["127.0.0.1", "localhost", "[::1]"].includes(url.hostname)))) throw new Error();
-    return url.origin;
+    return resolveApiOrigin(process.env.NEXT_PUBLIC_API_URL, window.location.href);
   } catch { throw new AccessError(503); }
 }
 

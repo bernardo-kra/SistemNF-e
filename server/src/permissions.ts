@@ -4,10 +4,11 @@ export type CustomerPermission = "customers.read" | "customers.create" | "custom
 export const customerPermissions: readonly CustomerPermission[] = ["customers.read", "customers.create", "customers.update", "customers.archive"];
 export const operationalPermissions = ["products.read", "products.create", "products.update", "products.archive", "products.cost.read", "stock.read", "stock.receive", "sales.read", "sales.create", "sales.deliver", "orders.read", "orders.create", "orders.update", "orders.advance", "orders.deliver", "purchases.read", "purchases.import", "purchases.receive", "audit.read"] as const;
 export type OperationalPermission = typeof operationalPermissions[number];
-export type AssignablePermission = CustomerPermission | OperationalPermission;
+export const financePermissions = ["finance.read", "finance.agreements.create", "finance.receive", "finance.accounts.manage", "finance.cash.manage"] as const;
+export type AssignablePermission = CustomerPermission | OperationalPermission | typeof financePermissions[number];
 export type Permission = AssignablePermission | "team.read" | "team.manage";
 export type PermissionOverrides = Partial<Record<AssignablePermission, boolean>>;
-export const assignablePermissions: readonly AssignablePermission[] = [...customerPermissions, ...operationalPermissions];
+export const assignablePermissions: readonly AssignablePermission[] = [...customerPermissions, ...operationalPermissions, ...financePermissions];
 export const permissionDependencies: Partial<Record<AssignablePermission, readonly AssignablePermission[]>> = {
   "customers.create": ["customers.read"], "customers.update": ["customers.read"], "customers.archive": ["customers.read", "customers.update"],
   "products.create": ["products.read"], "products.update": ["products.read"], "products.archive": ["products.read", "products.update"], "products.cost.read": ["products.read"],
@@ -15,6 +16,8 @@ export const permissionDependencies: Partial<Record<AssignablePermission, readon
   "sales.read": ["products.read", "customers.read"], "sales.create": ["sales.read", "stock.read"], "sales.deliver": ["sales.read", "stock.read"],
   "orders.read": ["customers.read"], "orders.create": ["orders.read"], "orders.update": ["orders.read"], "orders.advance": ["orders.read"], "orders.deliver": ["orders.read"],
   "purchases.read": ["products.read", "products.cost.read"], "purchases.import": ["purchases.read"], "purchases.receive": ["purchases.read", "stock.receive"],
+  "finance.agreements.create": ["finance.read", "customers.read"], "finance.receive": ["finance.read", "customers.read"],
+  "finance.accounts.manage": ["finance.read"], "finance.cash.manage": ["finance.read"],
 };
 
 export function permissionsForRole(role: string, overrides: unknown = {}): Permission[] {

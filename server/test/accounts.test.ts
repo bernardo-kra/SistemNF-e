@@ -10,6 +10,8 @@ before(async () => { fixture = await createFixture(); });
 after(async () => { await fixture?.close(); });
 const memberKeys = ["active", "createdAt", "email", "id", "name", "overrides", "permissions", "role", "updatedAt", "version"].sort();
 const customerPermissions = ["customers.read", "customers.create", "customers.update", "customers.archive"];
+// FIN-LIVE grants the owner five new rights; existing employee defaults stay unchanged.
+const financePermissions = ["finance.read", "finance.agreements.create", "finance.receive", "finance.accounts.manage", "finance.cash.manage"];
 // OP adds owner rights; employee defaults and the existing customer catalog remain unchanged.
 const operationalPermissions = ["products.read", "products.create", "products.update", "products.archive", "products.cost.read", "stock.read", "stock.receive", "sales.read", "sales.create", "sales.deliver", "orders.read", "orders.create", "orders.update", "orders.advance", "orders.deliver", "purchases.read", "purchases.import", "purchases.receive", "audit.read"];
 const base = (tenant = TENANT_A) => `/api/v1/tenants/${tenant}`;
@@ -65,7 +67,7 @@ test("ACC-02 opções e DTO de equipe só expõem campos do contrato e dados da 
     const member = listed.json().items[0]; assert.deepEqual(Object.keys(member).sort(), memberKeys);
     assert.equal(member.id, actor.id); assert.equal(member.version, 1);
     assert.equal(member.createdAt, null); assert.equal(member.updatedAt, null);
-    assert.deepEqual(member.permissions.slice().sort(), [...customerPermissions, ...operationalPermissions, "team.read", "team.manage"].sort());
+    assert.deepEqual(member.permissions.slice().sort(), [...customerPermissions, ...operationalPermissions, ...financePermissions, "team.read", "team.manage"].sort());
     for (const route of [members(TENANT_B), `${base(TENANT_B)}/access-options`, auditPath(TENANT_B)]) {
       assertError(await app.instance.inject({ method: "GET", url: route, headers: { cookie, "x-tenant-id": TENANT_B } }), 403);
     }

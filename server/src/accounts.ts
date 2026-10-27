@@ -4,7 +4,7 @@ import type { ApiConfig } from "./config.js";
 import { createAuth } from "./auth.js";
 import { allowedKeys, inputRecord, requireUuid } from "./customers.js";
 import { ApiError, conflict, forbidden, invalidInput, notFound, unavailable } from "./errors.js";
-import { assignablePermissions, customerPermissions, operationalPermissions, permissionsForRole, type AssignablePermission, type PermissionOverrides } from "./permissions.js";
+import { assignablePermissions, customerPermissions, operationalPermissions, financePermissions, permissionsForRole, type AssignablePermission, type PermissionOverrides } from "./permissions.js";
 
 type Role = "owner" | "operator" | "viewer";
 export type AccountContext = { tenantId: string; actorId: string };
@@ -341,7 +341,8 @@ export function createAccountsService(pool: Pool, config: ApiConfig) {
   return { assertManager, assertReady, list, get, create, update, accessAudit,
     options: () => ({ roles: ([{ id: "owner", label: "Gestor" }, { id: "operator", label: "Atendimento" }, { id: "viewer", label: "Consulta" }] as const)
       .map((entry) => ({ ...entry, permissions: permissionsForRole(entry.id) })),
-    operationalPermissions: operationalPermissions.map((id) => ({ id, label: ({ products: "Produtos", stock: "Estoque", sales: "Vendas", orders: "OS", purchases: "Compras", audit: "Histórico" }[id.split(".")[0]] ?? id) + " · " + ({ read: "Consultar", create: "Criar", update: "Editar", archive: "Inativar", receive: "Receber", deliver: "Entregar", advance: "Avançar", import: "Importar" }[id.split(".").at(-1)!] ?? "Consultar") + (id.includes(".cost.") ? " custos" : "") })),
+    operationalPermissions: [...operationalPermissions.map((id) => ({ id, label: ({ products: "Produtos", stock: "Estoque", sales: "Vendas", orders: "OS", purchases: "Compras", audit: "Histórico" }[id.split(".")[0]] ?? id) + " · " + ({ read: "Consultar", create: "Criar", update: "Editar", archive: "Inativar", receive: "Receber", deliver: "Entregar", advance: "Avançar", import: "Importar" }[id.split(".").at(-1)!] ?? "Consultar") + (id.includes(".cost.") ? " custos" : "") })),
+      ...financePermissions.map((id) => ({ id, label: { "finance.read": "Consultar financeiro", "finance.agreements.create": "Criar acordos e parcelas", "finance.receive": "Receber pagamentos", "finance.accounts.manage": "Cadastrar contas", "finance.cash.manage": "Abrir e fechar o próprio caixa" }[id] }))],
     permissions: [{ id: "customers.read", label: "Consultar clientes" }, { id: "customers.create", label: "Cadastrar clientes" },
       { id: "customers.update", label: "Editar clientes" }, { id: "customers.archive", label: "Inativar clientes" }] }) };
 }

@@ -2,14 +2,22 @@
   "name": "sistem-prototipo",
   "version": "0.1.0",
   "private": true,
+  "engines": { "node": ">=22.23.0 <23 || >=24" },
   "scripts": {
     "dev": "next dev --hostname 127.0.0.1",
-    "build": "next build",
+    "build": "next build && npm --prefix server run build",
+    "postinstall": "npm --prefix server ci --include=dev",
+    "start": "node --env-file-if-exists=.env.local --env-file-if-exists=.env --env-file-if-exists=.env.neon.local server/dist/web.js",
+    "setup:neon": "npm --prefix server run setup:neon",
+    "setup:neon:owner": "npm --prefix server run setup:neon:owner",
+    "smoke:neon": "npm --prefix server run smoke:neon",
     "postbuild": "node scripts/normalize-static-segments.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "node --test checks/static-export.test.mjs && playwright test"
+    "test": "node --test checks/static-export.test.mjs checks/api-origin.test.mjs && playwright test"
   },
   "dependencies": {
+    "@neon/config": "^1.9.5",
+    "@neon/env": "^1.6.6",
     "jsbarcode": "3.12.3",
     "lucide-react": "1.58.0",
     "next": "16.4.2",

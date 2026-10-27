@@ -7,22 +7,25 @@ import { Field, Modal } from "@/components/ui";
 import { money, stages, type Stage } from "@/lib/domain";
 import { parsePurchaseXml } from "@/lib/purchases/xml";
 import type { PurchaseDocument, PurchaseDecision, PurchasePlan } from "@/lib/purchases/types";
+import { CheckoutEditor } from "./checkout";
+import { AgreementEditor, FinancePanel } from "./finance-live";
 import styles from "./access-control.module.css";
 import op from "./operations-page.module.css";
 
 type Row = Record<string, any>;
-type Resource = "products" | "stock" | "sales" | "orders" | "purchases";
+type Resource = "products" | "stock" | "sales" | "orders" | "purchases" | "finance";
 type PageData = { tenantId: string; items: Row[]; total: number; limit: number; offset: number };
-type Editor = { kind: "product" | "stock" | "sale" | "order" | "editOrder" | "deliverOrder" | "prices"; row?: Row };
-const labels: Record<Resource, string> = { products: "Produtos", stock: "Estoque", sales: "Vendas", orders: "OS", purchases: "Compras" };
-const types: Record<Resource, string> = { products: "product", stock: "stock", sales: "sale", orders: "order", purchases: "purchase" };
-const resourceRights: Record<Resource, string> = { products: "products.read", stock: "stock.read", sales: "sales.read", orders: "orders.read", purchases: "purchases.read" };
+type Editor = { kind: "product" | "stock" | "sale" | "order" | "editOrder" | "deliverOrder" | "prices" | "agreement"; row?: Row };
+const labels: Record<Resource, string> = { products: "Produtos", stock: "Estoque", sales: "Vendas", orders: "OS", purchases: "Compras", finance: "Financeiro" };
+const types: Record<Resource, string> = { products: "product", stock: "stock", sales: "sale", orders: "order", purchases: "purchase", finance: "payment" };
+const resourceRights: Record<Resource, string> = { products: "products.read", stock: "stock.read", sales: "sales.read", orders: "orders.read", purchases: "purchases.read", finance: "finance.read" };
 const statuses: Record<Resource, { value: string; label: string }[]> = {
   products: [{ value: "active", label: "Ativos" }, { value: "inactive", label: "Inativos" }, { value: "pending", label: "Preço pendente" }],
   stock: [{ value: "available", label: "Com disponível" }, { value: "reserved", label: "Com reservas" }],
   sales: [{ value: "confirmed", label: "Confirmadas" }, { value: "delivered", label: "Entregues" }],
   orders: Object.entries(stages).map(([value, entry]) => ({ value, label: entry.label })),
   purchases: [{ value: "pending", label: "Sem recebimento" }, { value: "partial", label: "Parciais" }, { value: "received", label: "Recebidas" }],
+  finance: [],
 };
 const endpoint = (tenant: string) => `${accessBase(tenant)}/operations`;
 const message = (error: unknown) => error instanceof Error ? error.message : "Não foi possível concluir a operação.";
@@ -70,7 +73,7 @@ export function OperationsPage() {
     setError(message(failure));
   }, [clear]);
   useEffect(() => {
-    setPage(null); if (phase !== "ready" || !tenant || !rights.includes(resourceRights[resource])) return;
+    setPage(null); if (phase !== "ready" || !tenant || resource === "finance" || !rights.includes(resourceRights[resource])) return;
     const controller = new AbortController(), tag = generation.current;
     const params = new URLSearchParams({ q: search, status, sort, dateField, limit: "25", offset: String(offset) }); if (from) params.set("from", from); if (to) params.set("to", to);
     void accessRequest<PageData>(`${endpoint(tenant)}/${resource}?${params}`, { signal: controller.signal }).then((data) => {
@@ -97,7 +100,7 @@ export function OperationsPage() {
         {error && <p className={styles.error} role="alert">{error}</p>}{notice && <p role="status" className={styles.notice}>{notice}</p>}
         {!tenant ? <p>Selecione uma empresa para continuar.</p> : !rights.some((right) => Object.values(resourceRights).includes(right)) ? <p>Seu perfil não permite acessar a operação.</p> : <>
           <nav className={op.tabs} aria-label="Módulos operacionais">{(Object.keys(labels) as Resource[]).filter((key) => allowed(resourceRights[key])).map((key) => <button key={key} aria-current={resource === key ? "page" : undefined} onClick={() => { generation.current++; clear(); setResource(key); }}>{labels[key]}</button>)}</nav>
-          <section className={styles.panel}><div className={styles.panelHeader}><div><h2>{labels[resource]}</h2><p>{resource === "stock" ? "Físico, reservado e disponível têm a mesma origem." : "Histórico e horário registrados automaticamente ao confirmar."}</p></div>
+          {resource === "finance" ? <FinancePanel key={tenant} tenant={tenant} actorId={identity!.user.id} rights={rights} onUnauthorized={fail} /> : <section className={styles.panel}><div className={styles.panelHeader}><div><h2>{labels[resource]}</h2><p>{resource === "stock" ? "Físico, reservado e disponível têm a mesma origem." : "Histórico e horário registrados automaticamente ao confirmar."}</p></div>
             <div className={op.headerActions}>
             {resource === "products" && allowed("products.create") && <button className="button button-primary" onClick={(event) => open({ kind: "product" }, event.currentTarget)}>Novo produto</button>}
             {resource === "products" && allowed("products.update") && allowed("products.cost.read") && <button className="button button-secondary" onClick={(event) => open({ kind: "prices" }, event.currentTarget)}>Precificar pendentes</button>}
@@ -114,12 +117,13 @@ export function OperationsPage() {
               {resource === "products" ? <>{allowed("products.cost.read") && <th>Compra</th>}<th>Venda</th>{allowed("products.cost.read") && <th>Lucro estimado</th>}</> : resource === "stock" ? <><th>Físico</th><th>Reservado</th><th>Disponível</th></> : <><th>Situação</th><th>{resource === "orders" ? "Serviço" : "Total"}</th></>}
               <th>Alteração</th><th>Ações</th></tr></thead><tbody>{page.items.map((row) => {
                 const title = row.name ?? `${resource === "orders" ? "OS" : resource === "sales" ? "Venda" : "Compra"} ${row.number}`;
-                return <tr key={row.id}><td><strong>{title}</strong><small>{row.sku ?? row.customerName ?? row.supplierName}{row.equipment ? ` · ${row.equipment}` : ""}</small></td>
+                return <tr key={row.id}><td><strong>{title}</strong><small>{row.sku ?? row.customerName ?? row.supplierName}{row.equipment ? ` · ${row.equipment}` : ""}</small>{row.finance && <small>Recebido {money(row.finance.paidCents)} · Em aberto {money(row.finance.outstandingCents)}</small>}</td>
                   {resource === "products" ? <>{allowed("products.cost.read") && <td>{row.costCents == null ? "Pendente" : money(row.costCents)}</td>}<td>{row.salePriceCents == null ? "Pendente" : money(row.salePriceCents)}</td>{allowed("products.cost.read") && <td>{row.costCents == null || row.salePriceCents == null ? "Não calculado" : money(row.salePriceCents - row.costCents)}</td>}</> : resource === "stock" ? <><td>{row.physical}</td><td>{row.reserved}</td><td>{row.available}</td></> : <><td>{resource === "orders" ? stages[row.stage as Stage]?.label : resource === "sales" ? row.status === "delivered" ? "Entregue" : "Confirmada" : row.status === "received" ? "Recebida" : row.status === "partial" ? "Parcial" : "Sem recebimento"}{resource === "orders" && <small>{row.technicianName}</small>}</td><td>{resource === "orders" ? money(row.laborCents) : resource === "sales" ? money(row.totalCents) : row.document?.totalCents == null ? "—" : money(row.document.totalCents)}</td></>}
                   <td>{accessDate(row.updatedAt)}<small>Cadastro: {accessDate(row.createdAt)}</small></td><td><div className={op.actions}>
                     {resource === "products" && allowed("products.update") && <button onClick={(event) => open({ kind: "product", row }, event.currentTarget)}>Editar produto</button>}
                     {(resource === "stock" || resource === "products") && allowed("stock.receive") && <button onClick={(event) => open({ kind: "stock", row }, event.currentTarget)}>Registrar entrada</button>}
                     {resource === "sales" && row.status === "confirmed" && allowed("sales.deliver") && <button disabled={busy} onClick={() => void immediate("sale.deliver", { id: row.id, version: row.version })}>Entregar venda</button>}
+                    {(resource === "sales" || (resource === "orders" && row.approved)) && !row.agreementId && allowed("finance.agreements.create") && <button onClick={(event) => open({ kind: "agreement", row: { ...row, sourceType: types[resource] } }, event.currentTarget)}>Combinar pagamento</button>}
                     {resource === "orders" && row.stage !== "delivered" && <>
                       {allowed("orders.update") && <button onClick={(event) => open({ kind: "editOrder", row }, event.currentTarget)}>Editar OS</button>}
                       {row.stage === "awaiting_approval" && !row.approved && allowed("orders.update") && <button disabled={busy} onClick={() => void immediate("order.update", { id: row.id, version: row.version, approved: true })}>Registrar aprovação</button>}
@@ -131,11 +135,11 @@ export function OperationsPage() {
                   </div></td></tr>;
               })}</tbody></table></div>}
             {page && <div className={styles.footer}><span>{page.total} registros</span><div><button disabled={!offset} onClick={() => setOffset(Math.max(0, offset - 25))}>Anterior</button><button disabled={offset + 25 >= page.total} onClick={() => setOffset(offset + 25)}>Próxima</button></div></div>}
-          </section>
+          </section>}
         </>}
       </>}
-      <p className={styles.notice}>Esta área usa dados da empresa no servidor. Pagamentos, caixa e emissão fiscal ainda não estão integrados; estoque e entrega não confirmam quitação. A <Link href="/">demonstração</Link> permanece independente.</p>
-      {editor && (editor.kind === "prices" ? <PricesEditor key={tenant} tenant={tenant} onClose={close} onSaved={saved} onUnauthorized={fail} /> : <OperationEditor key={`${tenant}:${editor.kind}:${editor.row?.id ?? "new"}`} tenant={tenant} editor={editor} rights={rights} onClose={close} onSaved={saved} onUnauthorized={fail} generation={generation} />)}
+      <p className={styles.notice}>Esta área usa dados da empresa no servidor. Recebimentos em Pix e transferência exigem conferência manual. Entrega não confirma quitação; emissão fiscal e consulta externa de crédito permanecem pendentes. A <Link href="/">demonstração</Link> é independente.</p>
+      {editor && (editor.kind === "prices" ? <PricesEditor key={tenant} tenant={tenant} onClose={close} onSaved={saved} onUnauthorized={fail} /> : editor.kind === "agreement" ? <AgreementEditor tenant={tenant} source={editor.row!} onClose={close} onSaved={saved} onUnauthorized={fail} /> : editor.kind === "sale" && allowed("finance.agreements.create") ? <CheckoutEditor key={tenant} tenant={tenant} actorId={identity!.user.id} rights={rights} auxiliary={AuxiliaryForm} onClose={close} onSaved={saved} onUnauthorized={fail} /> : <OperationEditor key={`${tenant}:${editor.kind}:${editor.row?.id ?? "new"}`} tenant={tenant} editor={editor} rights={rights} onClose={close} onSaved={saved} onUnauthorized={fail} generation={generation} />)}
       {history && <HistoryDialog key={`${tenant}:${history.row.id}`} tenant={tenant} value={history} onClose={close} onUnauthorized={fail} />}
     </main></div>;
   async function immediateLogout() { if (busy) return; setBusy(true); try { await accessRequest("/api/auth/sign-out", { method: "POST", body: {} }); generation.current++; clear(); setIdentity(null); setTenant(""); setPhase("login"); setError(""); } catch (failure) { fail(failure); } finally { setBusy(false); } }
@@ -184,12 +188,12 @@ function OperationEditor({ tenant, editor, rights, onClose, onSaved, onUnauthori
     } catch (failure) { if (!invalidated()) { if (failure instanceof AccessError && [401, 403].includes(failure.status)) onUnauthorized(failure); else setError(message(failure)); } }
     finally { if (!invalidated()) setBusy(false); }
   }
-  const titles: Record<Editor["kind"], string> = { product: row ? "Editar produto" : "Novo produto", stock: "Registrar entrada", sale: "Nova venda", order: "Nova OS", editOrder: "Editar OS", deliverOrder: "Entregar equipamento", prices: "Preços" };
+  const titles: Record<Editor["kind"], string> = { product: row ? "Editar produto" : "Novo produto", stock: "Registrar entrada", sale: "Nova venda", order: "Nova OS", editOrder: "Editar OS", deliverOrder: "Entregar equipamento", prices: "Preços", agreement: "Pagamento" };
   const saveLabel = editor.kind === "product" ? "Salvar produto" : editor.kind === "sale" ? "Confirmar venda" : editor.kind === "stock" ? "Confirmar entrada" : editor.kind === "deliverOrder" ? "Confirmar entrega" : "Salvar OS";
   return <Modal title={titles[editor.kind]} onClose={() => { if (!busy) onClose(); }} onCancel={(event) => { if (busy) event.preventDefault(); else onClose(); }} onKeyDown={trap} wide={editor.kind === "sale"}>
     <form onSubmit={(event) => void submit(event)}><fieldset className={op.form} disabled={busy || Boolean(auxiliary)}>
       {error && <p className={styles.error} role="alert">{error}</p>}
-      {editor.kind === "product" && <><Field label="SKU"><input required maxLength={80} value={draft.sku} onChange={(event) => set("sku", event.target.value)} /></Field><Field label="Nome"><input required maxLength={160} value={draft.name} onChange={(event) => set("name", event.target.value)} /></Field><Field label="Tipo"><input required maxLength={80} value={draft.category} onChange={(event) => set("category", event.target.value)} /></Field>
+      {editor.kind === "product" && <><Field label="SKU"><input required={Boolean(row)} placeholder="Automático ao salvar" maxLength={80} value={draft.sku} onChange={(event) => set("sku", event.target.value)} /></Field><Field label="Nome"><input required maxLength={160} value={draft.name} onChange={(event) => set("name", event.target.value)} /></Field><Field label="Tipo"><input required maxLength={80} value={draft.category} onChange={(event) => set("category", event.target.value)} /></Field>
         {has("products.cost.read") && <Field label="Preço de compra"><input inputMode="decimal" value={draft.cost} onChange={(event) => set("cost", event.target.value)} /></Field>}<Field label="Preço de venda"><input inputMode="decimal" placeholder="Pendente" value={draft.price} onChange={(event) => set("price", event.target.value)} /></Field>
         {has("products.cost.read") && <p className={styles.note}>Lucro estimado: {(() => { try { const cost = amount(draft.cost), price = amount(draft.price); return cost == null || price == null ? "Não calculado" : `${money(price - cost)}${price ? ` · Margem ${((price - cost) / price * 100).toFixed(2)}%` : ""}`; } catch { return "Confira os valores"; } })()} · Antes de impostos e despesas.</p>}
         <label><input type="checkbox" checked={draft.serialized} onChange={(event) => set("serialized", event.target.checked)} /> Controle por série (recebimento e venda ainda indisponíveis)</label>
@@ -201,7 +205,7 @@ function OperationEditor({ tenant, editor, rights, onClose, onSaved, onUnauthori
       {["order", "editOrder"].includes(editor.kind) && <><Field label="Técnico responsável"><select aria-label="Técnico responsável" required value={draft.technicianId} onChange={(event) => set("technicianId", event.target.value)}><option value="">Selecione</option>{technicians.map((technician) => <option key={technician.id} value={technician.id}>{technician.name}</option>)}</select></Field>{has("orders.create") && <button type="button" className="button button-secondary" onClick={() => setAuxiliary("technician")}>Cadastrar técnico aqui</button>}
         {editor.kind === "order" ? <><Field label="Equipamento"><input required maxLength={160} value={draft.equipment} onChange={(event) => set("equipment", event.target.value)} /></Field><Field label="Serviço solicitado"><textarea required maxLength={2000} value={draft.issue} onChange={(event) => set("issue", event.target.value)} /></Field></> : <Field label="Diagnóstico"><textarea maxLength={4000} value={draft.diagnosis} onChange={(event) => set("diagnosis", event.target.value)} /></Field>}
         <Field label="Previsão"><input type="date" required value={draft.due} onChange={(event) => set("due", event.target.value)} /></Field><Field label="Mão de obra"><input inputMode="decimal" required disabled={row?.approved} value={draft.labor} onChange={(event) => set("labor", event.target.value)} /></Field></>}
-      {editor.kind === "deliverOrder" && <><p>OS {row?.number} · {row?.customerName} · {row?.equipment}</p><p className={styles.notice}>O financeiro ainda não está integrado. Esta ação registra somente a entrega do equipamento.</p><label><input type="checkbox" required checked={draft.allowUnsettled} onChange={(event) => set("allowUnsettled", event.target.checked)} />Confirmo a entrega sem conferência financeira integrada.</label></>}
+      {editor.kind === "deliverOrder" && <><p>OS {row?.number} · {row?.customerName} · {row?.equipment}</p><p className={styles.notice}>{row?.finance ? `Recebido: ${money(row.finance.paidCents)}. Em aberto: ${money(row.finance.outstandingCents)}.` : row?.agreementId ? "Condições financeiras registradas. Confira os recebimentos com o responsável financeiro." : "Esta OS ainda não tem condições de pagamento registradas."} Esta ação registra somente a entrega do equipamento.</p><label><input type="checkbox" required checked={draft.allowUnsettled} onChange={(event) => set("allowUnsettled", event.target.checked)} />Confirmo a entrega com a situação financeira informada.</label></>}
       <div className="form-actions"><button type="button" className="button button-secondary" onClick={onClose}>Cancelar</button><button className="button button-primary" type="submit" disabled={busy || (editor.kind === "sale" && !items.length)}>{busy ? "Confirmando…" : saveLabel}</button></div>
     </fieldset></form>
     {auxiliary && <AuxiliaryForm tenant={tenant} kind={auxiliary} onClose={() => setAuxiliary(null)} onSaved={(entity) => {
@@ -243,7 +247,7 @@ function PricesEditor({ tenant, onClose, onSaved, onUnauthorized }: { tenant: st
   </fieldset></form></Modal>;
 }
 
-function AuxiliaryForm({ tenant, kind, onClose, onSaved }: { tenant: string; kind: "customer" | "technician" | "product"; onClose: () => void; onSaved: (row: Row) => void }) {
+function AuxiliaryForm({ tenant, kind, onClose, onSaved, onUnauthorized }: { tenant: string; kind: "customer" | "technician" | "product"; onClose: () => void; onSaved: (row: Row) => void; onUnauthorized?: (error: unknown) => void }) {
   const [name, setName] = useState(""), [sku, setSku] = useState(""), [busy, setBusy] = useState(false), [error, setError] = useState(""); const id = useRef(crypto.randomUUID()); const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   return <Modal title={kind === "customer" ? "Cadastrar cliente" : kind === "product" ? "Cadastrar produto" : "Cadastrar técnico"} onClose={() => { if (!busy) onClose(); }} onKeyDown={trap} onCancel={(event) => { event.preventDefault(); event.stopPropagation(); if (!busy) onClose(); }}><form onSubmit={async (event) => {
@@ -251,8 +255,8 @@ function AuxiliaryForm({ tenant, kind, onClose, onSaved }: { tenant: string; kin
     try {
       const result = kind === "customer" ? await accessRequest<{ customer: Row }>(`${accessBase(tenant)}/customers`, { method: "POST", body: { requestId: id.current, name, type: "Pessoa física" } }) : await accessRequest<{ entity: Row }>(`${endpoint(tenant)}/commands`, { method: "POST", body: { requestId: id.current, type: kind === "product" ? "product.create" : "technician.create", data: kind === "product" ? { name, sku } : { name } } });
       if (mounted.current) onSaved("entity" in result ? result.entity : result.customer);
-    } catch (failure) { if (mounted.current) setError(message(failure)); } finally { if (mounted.current) setBusy(false); }
-  }}><fieldset disabled={busy} className={op.form}>{error && <p className={styles.error} role="alert">{error}</p>}<Field label="Nome"><input autoFocus required maxLength={120} value={name} onChange={(event) => setName(event.target.value)} /></Field>{kind === "product" && <><Field label="SKU"><input required maxLength={80} value={sku} onChange={(event) => setSku(event.target.value)} /></Field><p>Produto começa sem estoque e com preço pendente.</p></>}<div className="form-actions"><button type="button" className="button button-secondary" onClick={onClose}>Cancelar</button><button type="submit" className="button button-primary">Salvar cadastro</button></div></fieldset></form></Modal>;
+    } catch (failure) { if (mounted.current) { if (failure instanceof AccessError && [401, 403].includes(failure.status) && onUnauthorized) onUnauthorized(failure); else setError(message(failure)); } } finally { if (mounted.current) setBusy(false); }
+  }}><fieldset disabled={busy} className={op.form}>{error && <p className={styles.error} role="alert">{error}</p>}<Field label="Nome"><input autoFocus required maxLength={120} value={name} onChange={(event) => setName(event.target.value)} /></Field>{kind === "product" && <><Field label="SKU"><input placeholder="Automático ao salvar" maxLength={80} value={sku} onChange={(event) => setSku(event.target.value)} /></Field><p>Produto começa sem estoque e com preço pendente.</p></>}<div className="form-actions"><button type="button" className="button button-secondary" onClick={onClose}>Cancelar</button><button type="submit" className="button button-primary">Salvar cadastro</button></div></fieldset></form></Modal>;
 }
 
 function HistoryDialog({ tenant, value, onClose, onUnauthorized }: { tenant: string; value: { row: Row; type: string }; onClose: () => void; onUnauthorized: (error: unknown) => void }) {

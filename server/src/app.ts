@@ -9,8 +9,10 @@ import { ApiError, forbidden, invalidInput, notFound, unauthenticated, unavailab
 import { permissionsForRole, requirePermission, type Permission } from "./permissions.js";
 import { createAccountsService, type AccountContext } from "./accounts.js";
 import { executeOperation, listOperations, operationHistory, purchasePlan, commandPermissions, resourcePermission } from "./operations.js";
+import { readFinance } from "./finance.js";
+import { registerFrontend } from "./web-host.js";
 
-export type BuildOptions = { config: ApiConfig; controlPool: Pool; logger?: FastifyServerOptions["logger"] };
+export type BuildOptions = { config: ApiConfig; controlPool: Pool; logger?: FastifyServerOptions["logger"]; frontendRoot?: string };
 
 export async function buildApp(options: BuildOptions): Promise<FastifyInstance> {
   const { config, controlPool } = options;
@@ -84,16 +86,16 @@ export async function buildApp(options: BuildOptions): Promise<FastifyInstance> 
   async function authorize(request: FastifyRequest, rawTenantId: unknown, permission: Permission) {
     const user = await authenticatedUser(request);
     const tenantId = requireUuid(rawTenantId);
-    let membership: { id: string; database_key: string; role: string; permission_overrides: unknown } | undefined;
+    let membership: { id: string; name: string; database_key: string; role: string; permission_overrides: unknown } | undefined;
     try {
-      const result = await controlPool.query<{ id: string; database_key: string; role: string; permission_overrides: unknown }>(
-        "SELECT t.id,t.database_key,m.role,m.permission_overrides FROM memberships m JOIN tenants t ON t.id=m.tenant_id WHERE m.user_id=$1 AND m.tenant_id=$2 AND m.active=true AND t.active=true", [user.id, tenantId]);
+      const result = await controlPool.query<{ id: string; name: string; database_key: string; role: string; permission_overrides: unknown }>(
+        "SELECT t.id,t.name,t.database_key,m.role,m.permission_overrides FROM memberships m JOIN tenants t ON t.id=m.tenant_id WHERE m.user_id=$1 AND m.tenant_id=$2 AND m.active=true AND t.active=true", [user.id, tenantId]);
       membership = result.rows[0];
     } catch { throw unavailable(); }
     if (!membership) throw forbidden();
     requirePermission(membership.role, permission, membership.permission_overrides);
     metadata.set(request, { ...metadata.get(request), tenantId: membership.id });
-    return { tenantId: membership.id, actorId: user.id, role: membership.role, overrides: membership.permission_overrides, permissions: permissionsForRole(membership.role, membership.permission_overrides), pool: tenantPool(membership.database_key) };
+    return { tenantId: membership.id, tenantName: membership.name, actorId: user.id, actorName: user.name, role: membership.role, overrides: membership.permission_overrides, permissions: permissionsForRole(membership.role, membership.permission_overrides), pool: tenantPool(membership.database_key) };
   }
 
   function checkLoginRate(request: FastifyRequest) {
@@ -197,6 +199,14 @@ export async function buildApp(options: BuildOptions): Promise<FastifyInstance> 
   });
 
   type TenantParams = { tenantId: string };
+  app.get<{ Params: TenantParams & { resource: string } }>("/api/v1/tenants/:tenantId/finance/:resource", async (request) => {
+    const access = await authorize(request, request.params.tenantId, "finance.read");
+    return { tenantId: access.tenantId, ...await readFinance(access, request.params.resource, request.query) };
+  });
+  app.get<{ Params: TenantParams & { id: string } }>("/api/v1/tenants/:tenantId/finance/payments/:id", async (request) => {
+    const access = await authorize(request, request.params.tenantId, "finance.read");
+    return { tenantId: access.tenantId, ...await readFinance(access, `payments/${request.params.id}`, request.query) };
+  });
   const operationsBase = "/api/v1/tenants/:tenantId/operations";
   app.post<{ Params: TenantParams }>(`${operationsBase}/commands`, { bodyLimit: 2 * 1024 * 1024 }, async (request) => {
     const input = inputRecord(request.body), permission = typeof input.type === "string" ? commandPermissions[input.type] : undefined;
@@ -286,6 +296,7 @@ export async function buildApp(options: BuildOptions): Promise<FastifyInstance> 
     if (Object.hasOwn(inputRecord(request.body), "active")) requirePermission(access.role, "customers.archive", access.overrides);
     return { tenantId: access.tenantId, customer: await updateCustomerRecord(access.pool, requireUuid(request.params.id), request.body, access) };
   });
+  if (options.frontendRoot) await registerFrontend(app, options.frontendRoot);
   await app.ready();
   return app;
 }

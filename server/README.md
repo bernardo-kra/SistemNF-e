@@ -1,8 +1,63 @@
 # Sistem API
 
+## Neon e Render: homologação
+
+Configuração de 27/10/2026: projeto Neon `round-wind-47684434`, branch `production`, mantendo Better Auth do Sistem. O branch tem esse nome na plataforma, mas este ambiente é de homologação. `wandering-bar-87117671` não foi alterado. PostgreSQL usa `pg` e conexões **diretas**, pois o serviço de contas mantém advisory locks de sessão; conexão por pool transacional externo não preservaria esse contrato. Credenciais administrativas ficam somente nas ferramentas de preparação.
+
+O CLI já criou `neon.ts`, vinculou `.neon` e executou `neon deploy`, que recebeu `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `NEON_BRANCH`, `NEON_AUTH_BASE_URL` e `NEON_AUTH_JWKS_URL` em `.env.local` privado. Neon Auth já habilitado foi preservado; essas duas últimas variáveis não substituem o login existente nem são consumidas pelo Sistem.
+
+Na pasta `D:\SistemNF-e\web`, após o vínculo/autenticação no CLI:
+
+```powershell
+npm.cmd install
+neon.cmd deploy
+npm.cmd run setup:neon
+```
+
+`setup:neon` cria/reutiliza dois bancos próprios com marcador de ambiente, aplica as migrações e testa as conexões de runtime. Recusa banco ocupado sem seu marcador e roles privilegiadas, sem apagar dados. Roles, senhas, segredo de autenticação e ID da empresa são preservados em `server/.local/neon/round-wind-47684434/state.json`; mantenha esse arquivo privado para reaplicar a preparação. Não troque senhas manualmente para contornar conflitos. O runtime resultante fica em `.env.neon.local`, ignorado pelo Git; não contém a senha administrativa ou a senha do gestor. Este comando não cria um gestor padrão.
+
+Para preparar **seu primeiro gestor**, informe os dados explicitamente no PowerShell, ainda em `web`:
+
+```powershell
+$env:SISTEM_OWNER_NAME = Read-Host "Nome do gestor"
+$env:SISTEM_OWNER_EMAIL = Read-Host "E-mail do gestor"
+$env:SISTEM_COMPANY_NAME = Read-Host "Nome da empresa de teste"
+$neonOwnerSecret = Read-Host "Senha (mínimo 12 caracteres)" -AsSecureString
+try {
+  $env:SISTEM_OWNER_PASSWORD = [System.Net.NetworkCredential]::new("", $neonOwnerSecret).Password
+  npm.cmd run setup:neon:owner
+} finally {
+  Remove-Item -LiteralPath Env:SISTEM_OWNER_PASSWORD -ErrorAction SilentlyContinue
+  $neonOwnerSecret.Dispose()
+}
+npm.cmd run build
+npm.cmd start
+```
+
+Abra `http://127.0.0.1:4000/operacao/`. A preparação não redefine senha, não promove conta por coincidência de e-mail e não cria outro gestor ao repetir. Uma falha entre criar identidade e confirmar vínculo pode exigir recuperação administrativa explícita; preserve identidade e registros da tentativa. O modo de desenvolvimento em duas portas (`web` 3000/API 4000) continua disponível. `npm start` local usa loopback; Render usa `0.0.0.0` e `PORT`.
+
+No **Web Service Free do Render**, conectado ao repositório da pasta `web`:
+
+| Campo | Valor |
+|---|---|
+| Root Directory | vazio se a raiz do repositório já é `web`; `web` somente se essa pasta estiver dentro do repositório remoto |
+| Build Command | `npm ci --include=dev && npm run build` |
+| Start Command | `npm start` |
+| Health Check Path | `/health/ready` |
+| `NODE_ENV` | `production` |
+| `BETTER_AUTH_SECRET` | valor privado gerado em `.env.neon.local` |
+| `CONTROL_DATABASE_URL` | valor privado gerado em `.env.neon.local` |
+| `TENANT_DATABASE_URLS` | JSON gerado em `.env.neon.local`, sem as aspas simples externas do formato dotenv |
+
+O Render fornece `RENDER_EXTERNAL_URL` e `PORT`; API e frontend usam essa mesma origem, com HTTPS e cookies seguros. Se houver `NEXT_PUBLIC_API_URL` antigo apontando para localhost/outra API, remova-o e faça novo build para usar a mesma origem. `API_BASE_URL` e `FRONTEND_ORIGIN`, se definidos explicitamente, devem corresponder à URL HTTPS atual. `APP_PUBLIC_URL` é alternativa explícita ao endereço fornecido pelo Render. Não colocar `DATABASE_URL` administrativa no ambiente de runtime do Render; copiar somente os três valores gerados acima. Não copiar `.env.local`, manifests ou senhas para o Git ou para variáveis `NEXT_PUBLIC_*`.
+
+Teste remoto reproduzível: com Chrome instalado e porta 4000 livre, execute `npm.cmd run smoke:neon` na pasta `web`, após o build. Ele cria/reutiliza dois bancos QA próprios, separados dos dois bancos da aplicação, e mantém apenas dados fictícios neles. Não roda no build, não apaga bancos e não cria um gestor de teste no banco da sua empresa. Verifica login no navegador, sessão após reload, produto e auditoria no Neon, leitura em outro navegador, funcionário sem direito recebendo 403 e logout recebendo 401. Estado privado QA fica em `server/.local/neon/.../qa-state.json`, resultado sem credenciais em `server/.local/validation/neon-browser-result.json`. Evidências e limites em [documento 13](../docs/13-backend-primeiro-recorte.md).
+
+Na preparação inicial não houve commit/push/deploy. Na continuidade de 27/10 o usuário autorizou a publicação: o serviço existente `SistemNF-e` em `https://sistemnf-e.onrender.com` foi confirmado no plano Free e recebeu os comandos/variáveis privados acima. O primeiro gestor da empresa foi preparado explicitamente; a senha inicial fica somente no arquivo privado local entregue ao usuário. Resultado da publicação e validação em HTTPS no [registro da etapa](../docs/13-backend-primeiro-recorte.md). O build antigo mostrado no erro não continha `/operacao/` nem `/acessos/`; ambas precisam aparecer no build publicado. Em outra instalação, credenciais e banco não são enviados automaticamente do computador para o Render.
+
 Backend Node.js/TypeScript com Fastify, Better Auth e PostgreSQL. Fornece sessão real, vínculos e autorização por empresa, clientes, produtos, estoque, vendas, OS e compras, com versões e auditoria transacional. A área conectada Next.js está em `/operacao/`; a demonstração local continua independente.
 
-Estado/testes e limites em [Primeiro recorte do backend](../docs/13-backend-primeiro-recorte.md) e [Acessos e operação conectada](../docs/15-auditoria-acessos-e-filtros.md). O painel `/acessos/` administra funcionários e permissões dos módulos conectados. Iniciar esta API não migra os dados da demonstração. Financeiro, caixa, emissão fiscal, séries individuais e peças/orçamento versionado de OS continuam fora desta integração.
+Estado/testes e limites em [Primeiro recorte do backend](../docs/13-backend-primeiro-recorte.md), [Acessos e operação conectada](../docs/15-auditoria-acessos-e-filtros.md) e [Primeiro recorte financeiro](../docs/11-financeiro-primeiro-recorte.md). O painel `/acessos/` administra funcionários e permissões dos módulos conectados. Iniciar esta API não migra os dados da demonstração. O recorte financeiro conectado inclui acordos, parcelas, recebimentos manuais e caixa mínimo; emissão fiscal, séries individuais e peças/orçamento versionado de OS continuam pendentes.
 
 ## Desenvolvimento local no Windows
 

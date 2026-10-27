@@ -109,4 +109,54 @@ export async function migrateTenant(pool: Pool): Promise<void> {
     INSERT INTO operational_coordination(id) VALUES(1);
     CREATE TABLE customer_requests(request_id uuid PRIMARY KEY,fingerprint text NOT NULL,customer_id uuid NOT NULL REFERENCES customers(id));
   `, "tenant_002");
+  await migrate(pool, "tenant", `
+    CREATE TABLE finance_accounts (
+      id uuid PRIMARY KEY,name text NOT NULL CHECK(length(name) BETWEEN 1 AND 120),
+      type text NOT NULL CHECK(type IN ('cash','bank')),active boolean NOT NULL DEFAULT true,
+      version integer NOT NULL DEFAULT 1,created_at timestamptz NOT NULL,created_by text NOT NULL
+    );
+    CREATE TABLE finance_shifts (
+      id uuid PRIMARY KEY,account_id uuid NOT NULL REFERENCES finance_accounts(id),
+      status text NOT NULL CHECK(status IN ('open','closed')),opening_balance_cents bigint NOT NULL CHECK(opening_balance_cents>=0),
+      opened_at timestamptz NOT NULL,opened_by text NOT NULL,closed_at timestamptz,closed_by text,
+      counted_cents bigint CHECK(counted_cents>=0),expected_cents bigint,difference_cents bigint,version integer NOT NULL DEFAULT 1
+    );
+    CREATE UNIQUE INDEX finance_one_open_shift ON finance_shifts(account_id) WHERE status='open';
+    CREATE TABLE finance_agreements (
+      id uuid PRIMARY KEY,source_type text NOT NULL CHECK(source_type IN ('sale','order')),source_id uuid NOT NULL,
+      source_label text NOT NULL,customer_id uuid NOT NULL REFERENCES customers(id),customer_name text NOT NULL,
+      principal_cents bigint NOT NULL CHECK(principal_cents>0),created_at timestamptz NOT NULL,created_by text NOT NULL,
+      UNIQUE(source_type,source_id)
+    );
+    CREATE INDEX finance_agreement_customer ON finance_agreements(customer_id,id);
+    CREATE TABLE finance_installments (
+      id uuid PRIMARY KEY,agreement_id uuid NOT NULL REFERENCES finance_agreements(id),
+      kind text NOT NULL CHECK(kind IN ('down_payment','installment')),number integer NOT NULL,count integer NOT NULL,
+      amount_cents bigint NOT NULL CHECK(amount_cents>0),due date NOT NULL,created_at timestamptz NOT NULL,
+      UNIQUE(agreement_id,kind,number)
+    );
+    CREATE INDEX finance_installment_due ON finance_installments(due,created_at,id);
+    CREATE TABLE finance_payments (
+      id uuid PRIMARY KEY,customer_id uuid NOT NULL REFERENCES customers(id),account_id uuid NOT NULL REFERENCES finance_accounts(id),
+      shift_id uuid REFERENCES finance_shifts(id),amount_cents bigint NOT NULL CHECK(amount_cents>0),
+      method text NOT NULL CHECK(method IN ('cash','pix','transfer')),reference text NOT NULL,
+      at timestamptz NOT NULL,actor_id text NOT NULL,receipt jsonb NOT NULL CHECK(jsonb_typeof(receipt)='object')
+    );
+    CREATE INDEX finance_payment_customer ON finance_payments(customer_id,at DESC,id DESC);
+    CREATE TABLE finance_allocations (
+      payment_id uuid NOT NULL REFERENCES finance_payments(id),installment_id uuid NOT NULL REFERENCES finance_installments(id),
+      amount_cents bigint NOT NULL CHECK(amount_cents>0),PRIMARY KEY(payment_id,installment_id)
+    );
+    CREATE INDEX finance_allocation_installment ON finance_allocations(installment_id,payment_id);
+    CREATE TABLE finance_movements (
+      id uuid PRIMARY KEY,account_id uuid NOT NULL REFERENCES finance_accounts(id),payment_id uuid NOT NULL UNIQUE REFERENCES finance_payments(id),
+      shift_id uuid REFERENCES finance_shifts(id),amount_cents bigint NOT NULL CHECK(amount_cents>0),at timestamptz NOT NULL
+    );
+    CREATE INDEX finance_movement_account ON finance_movements(account_id,at,id);
+    CREATE TRIGGER finance_agreements_immutable BEFORE UPDATE OR DELETE ON finance_agreements FOR EACH ROW EXECUTE FUNCTION prevent_audit_changes();
+    CREATE TRIGGER finance_installments_immutable BEFORE UPDATE OR DELETE ON finance_installments FOR EACH ROW EXECUTE FUNCTION prevent_audit_changes();
+    CREATE TRIGGER finance_payments_immutable BEFORE UPDATE OR DELETE ON finance_payments FOR EACH ROW EXECUTE FUNCTION prevent_audit_changes();
+    CREATE TRIGGER finance_allocations_immutable BEFORE UPDATE OR DELETE ON finance_allocations FOR EACH ROW EXECUTE FUNCTION prevent_audit_changes();
+    CREATE TRIGGER finance_movements_immutable BEFORE UPDATE OR DELETE ON finance_movements FOR EACH ROW EXECUTE FUNCTION prevent_audit_changes();
+  `, "tenant_003");
 }

@@ -13,6 +13,8 @@ npm.cmd run dev
 
 Abrir `http://127.0.0.1:3000`. O sufixo `.cmd` evita o bloqueio de `npm.ps1` pela política do PowerShell, sem alterar a configuração do computador. Em outros shells, `npm install` e `npm run dev` funcionam normalmente.
 
+Para homologação com dados compartilhados, a aplicação pode servir interface e API no mesmo endereço usando `npm.cmd run build` e `npm.cmd start` (localmente em `http://127.0.0.1:4000`). A configuração atual usa PostgreSQL no Neon e mantém Better Auth; Neon Auth gerenciado não é o login do Sistem. Preparação dos bancos, criação explícita do gestor, variáveis privadas e configuração do Render estão no [guia do backend](server/README.md#neon-e-render-homologação). Sem configuração de backend, `start` oferece somente a demonstração e a prontidão da API retorna 503. Receber apenas `DATABASE_URL` sem preparar os bancos gera erro de inicialização, sem apresentar integração fictícia.
+
 ## Verificações
 
 ```powershell
@@ -21,7 +23,7 @@ npm.cmd test
 npm.cmd run build
 ```
 
-Os testes de navegador usam Google Chrome instalado (`channel: chrome`). O Playwright inicia o servidor quando necessário. O build gera a versão estática em `out/`; `next start` não se aplica ao modo de exportação estática.
+Os testes de navegador usam Google Chrome instalado (`channel: chrome`). O Playwright inicia o servidor quando necessário. O build gera a versão estática em `out/` e compila a API em `server/dist/`; `npm install` instala também as dependências do backend. `npm start` usa o host Node.js do projeto; `next start` não se aplica ao modo de exportação estática.
 
 O comando de build também executa `postbuild`, que adiciona nomes portáveis aos arquivos de segmentos exportados incorretamente em builds Windows. A correção é local aos artefatos, preserva os originais e foi motivada por um [problema reproduzido e registrado no Next.js](https://github.com/vercel/next.js/issues/92339). Há três testes dessa normalização em `checks/`, incluídos em `npm.cmd test`. Remover a correção somente após verificar uma versão do Next que exporte os caminhos corretamente.
 
@@ -82,7 +84,7 @@ As telas demonstrativas acima continuam locais. A área **Operação conectada**
 
 O fluxo conectado recebe XML em lote, resolve vínculos conhecidos e solicita decisões nas ambiguidades; permite precificar pendentes em conjunto. Vendas reservam o carrinho e a entrega baixa o físico uma vez. OS permite cadastrar cliente/técnico durante a abertura, avançar etapas e registrar entrega com conferência financeira explicitamente não integrada. Histórico mostra antes/depois e identidade real; custo é retirado do payload sem a permissão correspondente. A API valida permissões, versões e saldo.
 
-Esse recorte não migra dados locais nem reproduz ainda todas as funcionalidades demonstrativas: financeiro/relatórios, caixa, fiscal, impressão/leitor de OS, peças/orçamento versionado e séries individuais continuam fora da área conectada. Um novo banco começa vazio. Não houve publicação ou migração de dados reais. Para usar entre computadores, ainda é necessário configurar infraestrutura, HTTPS e origem da API conforme o guia do servidor.
+Esse recorte não migra dados locais nem reproduz ainda todas as funcionalidades demonstrativas. O financeiro conectado inclui acordos, parcelas, recebimentos manuais e caixa mínimo; relatórios completos, fiscal, impressão/leitor de OS, peças/orçamento versionado e séries individuais continuam pendentes. Um novo banco começa vazio. O PostgreSQL de homologação está preparado no Neon; a publicação desta versão no Render e a criação explícita do gestor da empresa são etapas do [guia do servidor](server/README.md#neon-e-render-homologação). Não houve migração de dados reais.
 
 ## Organização
 
@@ -95,7 +97,7 @@ A [equipe de agentes](docs/10-equipe-de-agentes.md) define sete papéis: orquest
 - `src/lib/seed.ts`: registros fictícios.
 - `src/lib/demo-store.tsx`: operações e persistência simuladas. Na integração real, substituir por serviços HTTP preservando contratos, autorização e validações no servidor.
 - `src/lib/fiscal`: tipos, conferência estrutural, transições e adaptador exclusivamente simulado.
-- `src/lib/finance`: tipos, regras e validação dos registros financeiros locais; o servidor continua pendente.
+- `src/lib/finance`: registros financeiros da demonstração. `server/src/finance.ts` e `src/features/finance-live.tsx` atendem o recorte conectado, sem misturar os dois armazenamentos.
 - `src/lib/diagnostics`: catálogo controlado, projeção dos eventos, filtros e buffer local independente.
 - `src/lib/reports`: consultas puras, totais em centavos e CSV dos registros selecionados.
 - `src/lib/purchases`: extração local de identidade, leitura XML, propostas, vínculos, compras e recebimentos rastreáveis.

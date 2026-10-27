@@ -1,5 +1,11 @@
 # Equipe de agentes do Sistem
 
+## Registro resumido — Neon/Render, 27/10/2026
+
+**Status: implementação e verificação do recorte concluídas; publicação no Render pendente.** Coordenador definiu aceite/testes antes do código, implementou host Node para export+API, preparação dos bancos remotos e primeiro gestor explícito. Usuário confirmou manter Better Auth e usar PostgreSQL Neon. Revisor independente `revisao_neon` fez leitura sem editar arquivos ou acessar segredos/serviços; apontou recuperação do marcador, conferência do destino do gestor e risco de omitir dependências de build. Correções tiveram testes RED/GREEN e reinspeção independente sem novas pendências nesses pontos. A execução dos testes foi do coordenador, sem apresentar isso como QA independente de toda a aplicação.
+
+Resultado: instalação/build/tipos aprovados; 250 cenários frontend e quatro checks; 12 casos rápidos de configuração/bootstrap/host/destino e três cenários PostgreSQL de preparação/primeiro gestor/recuperação aprovados em rodadas. Smoke real Chrome→API compilada→PostgreSQL Neon passou login/reload, produto/auditoria, leitura em outro navegador, bloqueio de funcionário e logout. Bancos QA são separados dos bancos da aplicação; nenhum gestor fictício foi inserido no banco da empresa. Sem commit/push ou novo deploy no Render. Comandos, falhas recuperadas e limites no [registro Neon](13-backend-primeiro-recorte.md); preparação e configuração no [guia da API](../server/README.md#neon-e-render-homologação). Esse parecer não encerra a revisão financeira/operacional anterior.
+
 **Versão 1.3 — 18/10/2026.** Guia de trabalho de sete papéis, incorporando o prompt mestre, o complemento e a regra de definir testes antes do código solicitada pelo usuário. Preserva o produto Sistem NF-e, Next.js e os três perfis originais, acrescentando orquestrador, arquiteto, revisor e especialista sob demanda. O primeiro anexo terminava incompleto na seção de frontend; o complemento posterior define as especializações agora incorporadas.
 
 Os perfis são configurações locais de agentes do Codex para desenvolver o projeto. Não são usuários do ERP nem agentes embarcados no produto. O guia não inicia processos permanentes, não retreina modelos e não implementa funcionalidades sozinho.

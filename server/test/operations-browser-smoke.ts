@@ -87,7 +87,8 @@ try {
   await expect(modal.getByLabel("Produto 1", { exact: true }).locator("option")).toHaveCount(2);
   await modal.getByLabel("Produto 1", { exact: true }).selectOption(product.id);
   await modal.getByLabel("Quantidade 1", { exact: true }).fill("2");
-  await modal.getByRole("button", { name: "Confirmar venda", exact: true }).click(); await expect(modal).toHaveCount(0);
+  await modal.getByLabel("Entregar agora", { exact: true }).uncheck();
+  await modal.getByRole("button", { name: "Concluir venda", exact: true }).click(); await expect(modal).toHaveCount(0);
   let stock = (await list("stock"))[0]; assert.equal(stock.physical, 5); assert.equal(stock.reserved, 2); assert.equal(stock.available, 3);
   await manager.getByRole("button", { name: "Entregar venda", exact: true }).click();
   await expect(manager.getByRole("button", { name: "Entregar venda", exact: true })).toHaveCount(0);
