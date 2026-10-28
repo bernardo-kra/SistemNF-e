@@ -2,7 +2,7 @@ import { resolveApiOrigin } from "../../shared/api-origin.mjs";
 
 export type AccessRole = "owner" | "operator" | "viewer";
 export type AccessCompany = { id: string; name: string; role: AccessRole; permissions: string[] };
-export type AccessIdentity = { user: { id: string; name: string; email: string }; tenants: AccessCompany[] };
+export type AccessIdentity = { user: { id: string; name: string; email: string }; tenants: AccessCompany[]; platformAdmin?: boolean };
 export type AccessMember = { id: string; name: string; email: string; role: AccessRole; active: boolean; version: number; permissions: string[]; overrides: Record<string, boolean>; createdAt: string | null; updatedAt: string | null };
 export type AccessOptions = { roles: { id: AccessRole; label: string; permissions: string[] }[]; permissions: { id: string; label: string }[]; operationalPermissions?: { id: string; label: string }[] };
 export type AccessAudit = { id: string; actorId: string; targetId: string; action: string; version: number; fields: string[]; at: string };

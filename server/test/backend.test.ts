@@ -120,7 +120,9 @@ test("BE-02c DTO de identidade deriva vínculos ativos e não expõe conexão ou
     const response = await app.instance.inject({ method: "GET", url: "/api/v1/me", headers: { cookie } });
     assert.equal(response.statusCode, 200, response.body);
     const me = response.json();
-    assert.deepEqual(Object.keys(me).sort(), ["tenants", "user"]);
+    // ADM adds the independently provisioned central privilege; owner remains tenant-scoped.
+    assert.deepEqual(Object.keys(me).sort(), ["platformAdmin", "tenants", "user"]);
+    assert.equal(me.platformAdmin, false);
     assert.deepEqual(Object.keys(me.user).sort(), ["email", "id", "name"]);
     assert.equal(me.user.id, user.id);
     assert.equal(me.user.email, user.email);

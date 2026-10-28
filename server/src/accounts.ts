@@ -134,7 +134,13 @@ export function createAccountsService(pool: Pool, config: ApiConfig) {
   const gate = gates.get(pool) ?? new AdministrationGate();
   gates.set(pool, gate);
 
-  async function manager(connection: Pick<Pool, "query"> | PoolClient, context: AccountContext) {
+  async function manager(connection: Pick<Pool, "query"> | PoolClient, context: AccountContext, onboardingId?: string) {
+    if (onboardingId) {
+      await connection.query("SELECT pg_advisory_xact_lock_shared(731245)");
+      const result = await connection.query("SELECT c.tenant_id FROM company_onboarding c JOIN tenants t ON t.id=c.tenant_id JOIN platform_administrator p ON p.user_id=c.actor_id AND p.singleton=true AND p.active=true WHERE c.request_id=$1 AND c.tenant_id=$2 AND c.actor_id=$3 AND c.completed_at IS NULL AND t.active=false", [onboardingId, context.tenantId, context.actorId]);
+      if (!result.rowCount) throw forbidden();
+      return;
+    }
     const result = await connection.query(
       "SELECT m.user_id FROM memberships m JOIN tenants t ON t.id=m.tenant_id WHERE m.tenant_id=$1 AND m.user_id=$2 AND m.role='owner' AND m.active=true AND t.active=true",
       [context.tenantId, context.actorId]);
@@ -147,8 +153,9 @@ export function createAccountsService(pool: Pool, config: ApiConfig) {
   async function assertManager(context: AccountContext) { await controlled(() => manager(pool, context)); }
   async function assertReady() {
     await controlled(async () => {
-      const versions = await pool.query("SELECT version FROM schema_migrations WHERE version IN ('control_001','control_002')");
-      if (versions.rowCount !== 2) throw unavailable();
+      const versions = await pool.query("SELECT version FROM schema_migrations WHERE version IN ('control_001','control_002','control_003')");
+      if (versions.rowCount !== 3) throw unavailable();
+      await pool.query("SELECT p.user_id,p.active,p.version,c.request_id,c.slot_id,c.fingerprint,c.completed_at,e.actor_id FROM platform_administrator p CROSS JOIN company_onboarding c CROSS JOIN company_admission_events e LIMIT 0");
       // Resolve required application columns without reading a user or operational record.
       // Authentication can be healthy while an application checkpoint is still incomplete.
       await pool.query(`SELECT t.id,t.name,t.database_key,t.active,
@@ -166,7 +173,7 @@ export function createAccountsService(pool: Pool, config: ApiConfig) {
       finally { client.release(); }
     });
   }
-  async function administer<T>(context: AccountContext, email: string | undefined, action: (client: PoolClient) => Promise<T>): Promise<T> {
+  async function administer<T>(context: AccountContext, email: string | undefined, action: (client: PoolClient) => Promise<T>, onboardingId?: string): Promise<T> {
     return controlled(async () => {
       await gate.acquire();
       let client: PoolClient | undefined;
@@ -179,7 +186,7 @@ export function createAccountsService(pool: Pool, config: ApiConfig) {
           if (result.rows[0]?.locked !== true) throw unavailable();
           locks.push(key);
         }
-        await manager(client, context);
+        await manager(client, context, onboardingId);
         return await action(client);
       } finally {
         try {
@@ -238,11 +245,14 @@ export function createAccountsService(pool: Pool, config: ApiConfig) {
     });
   }
 
-  async function create(context: AccountContext, raw: unknown) {
+  async function create(context: AccountContext, raw: unknown, onboardingId?: string) {
     const input = creation(raw), digest = fingerprint(input);
+    if (onboardingId && (input.requestId !== onboardingId || input.role !== "owner" || Object.keys(input.overrides).length)) throw forbidden();
     return administer(context, input.email, async (client) => {
       const intent = await transaction(client, async () => {
-        await manager(client, context);
+        await manager(client, context, onboardingId);
+        const reserved = await client.query("SELECT request_id FROM company_onboarding WHERE owner_email=$1 AND request_id IS DISTINCT FROM $2::uuid", [input.email, onboardingId ?? null]);
+        if (reserved.rowCount) throw new ApiError(409, "ACCOUNT_CONFLICT", "Este e-mail está reservado para um gestor de empresa.");
         const existing = await client.query<Intent>("SELECT * FROM account_provisioning WHERE request_id=$1 FOR UPDATE", [input.requestId]);
         if (existing.rows[0]) {
           const previous = existing.rows[0];
@@ -279,7 +289,7 @@ export function createAccountsService(pool: Pool, config: ApiConfig) {
       if (!user.credential) throw unavailable();
       const id = user.id;
       return transaction(client, async () => {
-        await manager(client, context);
+        await manager(client, context, onboardingId);
         const existing = await client.query("SELECT user_id FROM memberships WHERE tenant_id=$1 AND user_id=$2", [context.tenantId, id]);
         if (existing.rowCount) throw identityConflict();
         await client.query("INSERT INTO memberships(user_id,tenant_id,role,active,permission_overrides,created_at,updated_at) VALUES($1,$2,$3,true,$4,clock_timestamp(),clock_timestamp())",
@@ -288,7 +298,7 @@ export function createAccountsService(pool: Pool, config: ApiConfig) {
         await client.query("UPDATE account_provisioning SET user_id=$2 WHERE request_id=$1", [input.requestId, id]);
         return memberDto(await member(client, context.tenantId, id));
       });
-    });
+    }, onboardingId);
   }
 
   async function update(context: AccountContext, rawId: unknown, raw: unknown) {
@@ -338,7 +348,8 @@ export function createAccountsService(pool: Pool, config: ApiConfig) {
     });
   }
 
-  return { assertManager, assertReady, list, get, create, update, accessAudit,
+  return { assertManager, assertReady, list, get, create: (context: AccountContext, raw: unknown) => create(context, raw),
+    createFirstOwner: (context: AccountContext, raw: unknown) => create(context, raw, requireUuid(inputRecord(raw).requestId)), update, accessAudit,
     options: () => ({ roles: ([{ id: "owner", label: "Gestor" }, { id: "operator", label: "Atendimento" }, { id: "viewer", label: "Consulta" }] as const)
       .map((entry) => ({ ...entry, permissions: permissionsForRole(entry.id) })),
     operationalPermissions: [...operationalPermissions.map((id) => ({ id, label: ({ products: "Produtos", stock: "Estoque", sales: "Vendas", orders: "OS", purchases: "Compras", audit: "Histórico" }[id.split(".")[0]] ?? id) + " · " + ({ read: "Consultar", create: "Criar", update: "Editar", archive: "Inativar", receive: "Receber", deliver: "Entregar", advance: "Avançar", import: "Importar" }[id.split(".").at(-1)!] ?? "Consultar") + (id.includes(".cost.") ? " custos" : "") })),

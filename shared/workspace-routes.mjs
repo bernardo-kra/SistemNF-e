@@ -1,4 +1,4 @@
-const pages = ["/", "/produtos/", "/estoque/", "/clientes/", "/vendas/", "/ordens/", "/compras/", "/financeiro/", "/acessos/", "/configuracoes/", "/relatorios/", "/diagnostico/", "/parceiros/", "/fiscal/", "/fiscal/configuracao/", "/fiscal/revisao/"];
+const pages = ["/", "/produtos/", "/estoque/", "/clientes/", "/vendas/", "/ordens/", "/compras/", "/financeiro/", "/acessos/", "/administracao/", "/configuracoes/", "/relatorios/", "/diagnostico/", "/parceiros/", "/fiscal/", "/fiscal/configuracao/", "/fiscal/revisao/"];
 export const demoPages = ["/", "/produtos/", "/estoque/", "/clientes/", "/vendas/", "/ordens/", "/financeiro/", "/configuracoes/", "/relatorios/", "/diagnostico/", "/parceiros/", "/importar/", "/fiscal/", "/fiscal/configuracao/", "/fiscal/revisao/"];
 export function workspaceReturnPath(value) {
   if (typeof value !== "string" || !value.startsWith("/") || value.startsWith("//") || value.includes("\\")) return "/";

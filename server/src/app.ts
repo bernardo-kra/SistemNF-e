@@ -12,6 +12,7 @@ import { executeOperation, listOperations, operationHistory, purchasePlan, comma
 import { readFinance } from "./finance.js";
 import { registerFrontend } from "./web-host.js";
 import { operationalPoolOptions } from "./operational-pool.js";
+import { createAdministrationService } from "./administration.js";
 
 export type BuildOptions = { config: ApiConfig; controlPool: Pool; logger?: FastifyServerOptions["logger"]; frontendRoot?: string };
 
@@ -98,6 +99,8 @@ export async function buildApp(options: BuildOptions): Promise<FastifyInstance> 
     metadata.set(request, { ...metadata.get(request), tenantId: membership.id });
     return { tenantId: membership.id, tenantName: membership.name, actorId: user.id, actorName: user.name, role: membership.role, overrides: membership.permission_overrides, permissions: permissionsForRole(membership.role, membership.permission_overrides), pool: tenantPool(membership.database_key) };
   }
+
+  const administration = createAdministrationService(controlPool, config, tenantPool, accounts);
 
   function checkLoginRate(request: FastifyRequest) {
     const now = Date.now();
@@ -195,11 +198,21 @@ export async function buildApp(options: BuildOptions): Promise<FastifyInstance> 
     try {
       const memberships = await controlPool.query<{ id: string; name: string; role: string; permission_overrides: unknown }>(
         "SELECT t.id,t.name,m.role,m.permission_overrides FROM memberships m JOIN tenants t ON t.id=m.tenant_id WHERE m.user_id=$1 AND m.active=true AND t.active=true ORDER BY t.id", [user.id]);
-      return { user, tenants: memberships.rows.map((row) => ({ id: row.id, name: row.name, role: row.role, permissions: permissionsForRole(row.role, row.permission_overrides) })) };
+      return { user, platformAdmin: await administration.isAdministrator(user.id), tenants: memberships.rows.map((row) => ({ id: row.id, name: row.name, role: row.role, permissions: permissionsForRole(row.role, row.permission_overrides) })) };
     } catch { throw unavailable(); }
   });
 
   type TenantParams = { tenantId: string };
+  app.get("/api/v1/administration/companies", async (request) => {
+    const user = await authenticatedUser(request);
+    return administration.list(user.id, request.query);
+  });
+  app.post("/api/v1/administration/companies", async (request, reply) => {
+    const user = await authenticatedUser(request);
+    allowedKeys(inputRecord(request.query), []);
+    const result = await administration.create(user.id, request.body);
+    reply.code(201); return result;
+  });
   app.get<{ Params: TenantParams & { resource: string } }>("/api/v1/tenants/:tenantId/finance/:resource", async (request) => {
     const access = await authorize(request, request.params.tenantId, "finance.read");
     return { tenantId: access.tenantId, ...await readFinance(access, request.params.resource, request.query) };

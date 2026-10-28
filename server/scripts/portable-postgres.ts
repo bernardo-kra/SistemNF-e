@@ -129,6 +129,15 @@ export async function createLocalDatabase(admin: Pool, credentials: LocalCredent
     if (tables.rows[0].audit) await migrationPool.query(`REVOKE UPDATE,DELETE ON audit_events FROM ${identifier(runtimeUser)}`);
     if (tables.rows[0].access_audit) await migrationPool.query(`REVOKE UPDATE,DELETE ON access_audit_events FROM ${identifier(runtimeUser)}`);
     if (tables.rows[0].migrations) await migrationPool.query(`REVOKE INSERT,UPDATE,DELETE ON schema_migrations FROM ${identifier(runtimeUser)}`);
+    for (const table of ["platform_administrator", "platform_administrator_events", "tenant_admission"]) {
+      const exists = await migrationPool.query("SELECT to_regclass($1) AS name", [`public.${table}`]);
+      if (exists.rows[0].name) {
+        await migrationPool.query(`REVOKE INSERT,UPDATE,DELETE ON ${identifier(table)} FROM ${identifier(runtimeUser)}`);
+        if (table === "tenant_admission") await migrationPool.query(`GRANT UPDATE(tenant_id,claimed_at) ON tenant_admission TO ${identifier(runtimeUser)}`);
+      }
+    }
+    const admissionEvents = await migrationPool.query("SELECT to_regclass('public.company_admission_events') AS name");
+    if (admissionEvents.rows[0].name) await migrationPool.query(`REVOKE UPDATE,DELETE ON company_admission_events FROM ${identifier(runtimeUser)}`);
   };
   return { databaseName, migrationPool, runtimeUser,
     runtimeUrl: databaseUrl(credentials, databaseName, runtimeUser, password), grantRuntime };

@@ -66,6 +66,27 @@ export async function migrateControl(pool: Pool): Promise<void> {
       user_id text REFERENCES "user"(id), created_at timestamptz NOT NULL DEFAULT clock_timestamp()
     );
   `, "control_002");
+  await migrate(pool, "control", `
+    CREATE TABLE platform_administrator (
+      singleton boolean PRIMARY KEY DEFAULT true CHECK(singleton), user_id text NOT NULL UNIQUE REFERENCES "user"(id),
+      active boolean NOT NULL DEFAULT true, version integer NOT NULL DEFAULT 1 CHECK(version>0), configured_at timestamptz NOT NULL DEFAULT clock_timestamp()
+    );
+    CREATE TABLE platform_administrator_events (
+      id uuid PRIMARY KEY,user_id text NOT NULL REFERENCES "user"(id),active boolean NOT NULL,version integer NOT NULL,
+      source text NOT NULL CHECK(source='administrative-cli'),at timestamptz NOT NULL DEFAULT clock_timestamp(),UNIQUE(user_id,version)
+    );
+    CREATE TRIGGER platform_admin_events_immutable BEFORE UPDATE OR DELETE ON platform_administrator_events FOR EACH ROW EXECUTE FUNCTION prevent_access_audit_changes();
+    CREATE TABLE company_onboarding (
+      request_id uuid PRIMARY KEY,tenant_id uuid NOT NULL UNIQUE REFERENCES tenants(id),actor_id text NOT NULL REFERENCES "user"(id),
+      slot_id uuid NOT NULL UNIQUE,fingerprint text NOT NULL,owner_name text NOT NULL,owner_email text NOT NULL UNIQUE,
+      created_at timestamptz NOT NULL DEFAULT clock_timestamp(),completed_at timestamptz
+    );
+    CREATE TABLE company_admission_events (
+      id uuid PRIMARY KEY,tenant_id uuid NOT NULL UNIQUE REFERENCES tenants(id),actor_id text NOT NULL REFERENCES "user"(id),
+      at timestamptz NOT NULL DEFAULT clock_timestamp()
+    );
+    CREATE TRIGGER company_events_immutable BEFORE UPDATE OR DELETE ON company_admission_events FOR EACH ROW EXECUTE FUNCTION prevent_access_audit_changes();
+  `, "control_003");
 }
 
 export async function migrateTenant(pool: Pool): Promise<void> {
@@ -159,4 +180,20 @@ export async function migrateTenant(pool: Pool): Promise<void> {
     CREATE TRIGGER finance_allocations_immutable BEFORE UPDATE OR DELETE ON finance_allocations FOR EACH ROW EXECUTE FUNCTION prevent_audit_changes();
     CREATE TRIGGER finance_movements_immutable BEFORE UPDATE OR DELETE ON finance_movements FOR EACH ROW EXECUTE FUNCTION prevent_audit_changes();
   `, "tenant_003");
+  await migrate(pool, "tenant", `
+    CREATE TABLE tenant_admission (
+      singleton boolean PRIMARY KEY DEFAULT true CHECK(singleton),slot_id uuid NOT NULL UNIQUE,tenant_id uuid UNIQUE,
+      prepared_at timestamptz NOT NULL DEFAULT clock_timestamp(),claimed_at timestamptz,
+      CHECK((tenant_id IS NULL AND claimed_at IS NULL) OR (tenant_id IS NOT NULL AND claimed_at IS NOT NULL))
+    );
+    CREATE FUNCTION protect_tenant_admission() RETURNS trigger LANGUAGE plpgsql AS $body$
+    BEGIN
+      IF TG_OP='DELETE' OR NEW.slot_id<>OLD.slot_id OR NEW.prepared_at<>OLD.prepared_at OR
+        (OLD.tenant_id IS NOT NULL AND (NEW.tenant_id IS DISTINCT FROM OLD.tenant_id OR NEW.claimed_at IS DISTINCT FROM OLD.claimed_at)) THEN
+        RAISE EXCEPTION 'admission binding is permanent' USING ERRCODE='42501';
+      END IF;
+      RETURN NEW;
+    END; $body$;
+    CREATE TRIGGER tenant_admission_monotonic BEFORE UPDATE OR DELETE ON tenant_admission FOR EACH ROW EXECUTE FUNCTION protect_tenant_admission();
+  `, "tenant_004");
 }

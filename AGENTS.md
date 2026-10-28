@@ -26,6 +26,7 @@ Os perfis nao autorizam implementar todo o backlog, iniciar outros agentes ou pu
 - Entregas registram status, alteracoes, comandos/resultados, limitacoes, riscos e pendencias. Build aprovado nao substitui verificacao funcional; nao altere testes para ocultar falha nem declare testes que nao executou.
 - Publicacao em producao, despesas e operacoes destrutivas com dados/ambientes reais exigem autorizacao explicita do usuario. Reutilize autorizacoes ja registradas quando cobrirem a mesma acao e suas condicoes; um perfil nao concede essa autorizacao.
 - Nao exponha credenciais. Nao altere configuracao global, audiencia, permissoes externas ou desative verificacoes para forcar sucesso.
+- Cadastros, saldos e lancamentos operacionais de uma empresa ficam somente no banco, inclusive dados de teste pedidos para essa conta. Nao copiar seus conteudos para codigo, documentacao, scripts de carga ou manifestos locais. Testes automatizados usam fixtures genericas isoladas, sem copiar os registros da empresa.
 
 ## Criterio de usabilidade operacional
 

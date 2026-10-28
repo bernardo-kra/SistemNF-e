@@ -17,6 +17,8 @@
 .dates { padding: 0 20px 18px; display: flex; align-items: end; gap: 12px; flex-wrap: wrap; }
 .dates summary { cursor: pointer; font-size: 12px; color: #285ed6; margin-bottom: 14px; }
 .dateFields { display: flex; align-items: end; gap: 12px; flex-wrap: wrap; }
+.dateFields > label { min-width: 0; }
+.dateFields input, .dateFields select { min-width: 0; max-width: 100%; width: 100%; }
 .table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .table th { padding: 12px 20px; text-align: left; background: #f7f9fc; font-size: 11px; color: #64748b; font-weight: 600; }
 .table td { padding: 16px 20px; border-top: 1px solid #edf1f7; vertical-align: middle; }
@@ -61,6 +63,7 @@
   .table { min-width: 660px; }
   .login { margin: 28px auto; padding: 22px; }
   .panelHeader { padding: 16px; }
-  .dateFields { display: grid; grid-template-columns: 1fr 1fr; width: 100%; }
+  .dateFields { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); width: 100%; }
   .footer { flex-wrap: wrap; }
 }
+@media (max-width: 420px) { .dateFields { grid-template-columns: minmax(0,1fr); } }

@@ -120,7 +120,7 @@ export function AccessControl() {
 export function LoginForm({ error, onSigned }: { error: string; onSigned: () => Promise<void> }) {
   const [email, setEmail] = useState(""), [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false), [failure, setFailure] = useState("");
-  return <section className={styles.loginEmbedded}><h2>Entrar no Sistem</h2><p>Use sua conta individual para acessar sua empresa.</p><form className={styles.form} onSubmit={async (event) => {
+  return <section className={styles.loginEmbedded}><h2>Entrar no Sistem</h2><p>Use o e-mail e a senha da sua conta.</p><p>O acesso é liberado pela administração. Para obter uma conta, fale com o responsável da sua empresa.</p><form className={styles.form} onSubmit={async (event) => {
     event.preventDefault(); if (busy) return; setBusy(true); setFailure("");
     try { await accessRequest("/api/auth/sign-in/email", { method: "POST", body: { email, password } }); setPassword(""); await onSigned(); }
     catch (issue) { setFailure(message(issue)); }

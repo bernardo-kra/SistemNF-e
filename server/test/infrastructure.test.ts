@@ -23,7 +23,8 @@ test("BE-INFRA-01 duas migrações centrais concorrentes completam com pool máx
       "both concurrent migrations must finish without borrowing an unavailable third connection");
     const versions = await pool.query("SELECT version FROM schema_migrations ORDER BY version");
     // ACC/doc15 acrescenta a migração central sem substituir a versão anterior.
-    assert.deepEqual(versions.rows, [{ version: "control_001" }, { version: "control_002" }]);
+    // ADM adds a central migration without replacing the existing identity/access history.
+    assert.deepEqual(versions.rows, [{ version: "control_001" }, { version: "control_002" }, { version: "control_003" }]);
     const schema = await pool.query("SELECT to_regclass('public.tenants') AS tenants,to_regclass('public.memberships') AS memberships,to_regclass('public.\"user\"') AS auth_user");
     assert.ok(schema.rows[0].tenants && schema.rows[0].memberships && schema.rows[0].auth_user);
   } finally { await pool.end(); }

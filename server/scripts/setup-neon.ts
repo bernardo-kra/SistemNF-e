@@ -2,7 +2,9 @@ import { randomBytes, randomUUID, createHash } from "node:crypto";
 import { mkdir, readFile, writeFile, rename } from "node:fs/promises";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { parseEnv } from "node:util";
 import { prepareRemoteDatabases } from "./remote-databases.js";
+import { preserveOperationalMappings } from "./neon-runtime.js";
 
 export async function setupNeon(env: NodeJS.ProcessEnv, root = resolve(import.meta.dirname, "../..")) {
   const link = JSON.parse(await readFile(resolve(root, ".neon"), "utf8"));
@@ -29,9 +31,13 @@ export async function setupNeon(env: NodeJS.ProcessEnv, root = resolve(import.me
     throw new Error("Configuração privada incompatível. Preserve os arquivos existentes.");
   }
   const prefix = `sistem_${createHash("sha256").update(link.projectId).digest("hex").slice(0, 10)}`;
-  const databases = await prepareRemoteDatabases({ adminUrl: url.toString(), prefix, credentials: state });
-  const runtime = `BETTER_AUTH_SECRET=${state.authSecret}\nCONTROL_DATABASE_URL=${databases.controlUrl}\nTENANT_DATABASE_URLS='${JSON.stringify({ main: databases.tenantUrl })}'\n`;
   const target = resolve(root, ".env.neon.local");
+  let previous: string | undefined;
+  try { previous = parseEnv(await readFile(target, "utf8")).TENANT_DATABASE_URLS; }
+  catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
+  const databases = await prepareRemoteDatabases({ adminUrl: url.toString(), prefix, credentials: state });
+  const operational = preserveOperationalMappings(previous, databases.tenantUrl);
+  const runtime = `BETTER_AUTH_SECRET=${state.authSecret}\nCONTROL_DATABASE_URL=${databases.controlUrl}\nTENANT_DATABASE_URLS='${JSON.stringify(operational)}'\n`;
   const temporary = resolve(directory, `runtime-${randomUUID()}.tmp`);
   await writeFile(temporary, runtime, { mode: 0o600, flag: "wx" });
   await rename(temporary, target);

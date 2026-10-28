@@ -21,3 +21,22 @@ test("NEON05 criação do gestor exige marcador do banco de controle esperado", 
   await assert.rejects(verifyNeonControlMarker(pool("sistem_test_qa:control"), "sistem_test"));
   await assert.rejects(verifyNeonControlMarker(pool(), "sistem_test"));
 });
+
+test("NEON06 reaplicar preparação preserva conexões operacionais adicionais", async () => {
+  const { preserveOperationalMappings } = await import("../scripts/neon-runtime.js");
+  const main="postgresql://runtime:qa-only@localhost/main",spare="postgresql://runtime:qa-only@localhost/available";
+  assert.deepEqual(preserveOperationalMappings(undefined,main),{main});
+  assert.deepEqual(preserveOperationalMappings(JSON.stringify({main,available:spare}),main),{main,available:spare});
+});
+
+test("NEON07 configuração anterior incompatível não é sobrescrita", async () => {
+  const { preserveOperationalMappings } = await import("../scripts/neon-runtime.js");
+  const main="postgresql://runtime:qa-only@localhost/main";
+  for(const previous of ["broken","[]","null",JSON.stringify({main:"postgresql://runtime:qa-only@localhost/other"}),JSON.stringify({available:"https://example.test"}),JSON.stringify({"invalid-key":main}),JSON.stringify(Object.fromEntries(Array.from({length:17},(_,i)=>[`db_${i}`,main])))])assert.throws(()=>preserveOperationalMappings(previous,main));
+});
+
+test("NEON08 delimitador dotenv em conexão anterior é recusado antes de regravar", async () => {
+  const { preserveOperationalMappings } = await import("../scripts/neon-runtime.js");
+  const main="postgresql://runtime:qa-only@localhost/main";
+  assert.throws(()=>preserveOperationalMappings(JSON.stringify({main,available:"postgresql://runtime:qa-only@localhost/db'qa"}),main));
+});

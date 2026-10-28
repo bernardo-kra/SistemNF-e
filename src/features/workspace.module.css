@@ -5,7 +5,7 @@
 .company label { font-size: 10px; color: #64748b; }
 .identity { min-width: 0; }
 .identity > span { min-width: 0; }
-.identity strong, .identity small { display: block; font-size: 12px; overflow-wrap: anywhere; }
+.identity strong, .identity small { display: block; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .identity small { color: #64748b; margin-top: 4px; }
 .identity button { white-space: nowrap; }
 .menu { display: none; }
@@ -19,5 +19,6 @@
 .pending p { color: #64748b; line-height: 1.7; margin: 14px 0; }
 .pending a { color: #285ed6; }
 @media(max-width: 1000px) { .cards { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+.identity > span:not(:first-child) { max-width: 240px; }
 @media(max-width: 800px) { .menu { display: inline-flex; } }
 @media(max-width: 700px) { .menu { display: inline-flex; } .identity { gap: 8px; } .identity > .avatar { display: none; } .identity button { padding: 8px; font-size: 11px; } .identity > span:not(:first-child) { max-width: 105px; } .cards { grid-template-columns: 1fr; } .connecting { margin: 30px auto; } }

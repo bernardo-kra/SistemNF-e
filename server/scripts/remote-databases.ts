@@ -53,6 +53,13 @@ export async function prepareRemoteDatabases(input: Input) {
         for (const table of scope === "control" ? ["access_audit_events"] : ["audit_events", "finance_agreements", "finance_installments", "finance_payments", "finance_allocations", "finance_movements"]) {
           await migration.query(`REVOKE UPDATE,DELETE ON ${identifier(table)} FROM ${identifier(role)}`);
         }
+        if (scope === "control") {
+          for (const table of ["platform_administrator", "platform_administrator_events"]) await migration.query(`REVOKE INSERT,UPDATE,DELETE ON ${identifier(table)} FROM ${identifier(role)}`);
+          await migration.query(`REVOKE UPDATE,DELETE ON company_admission_events FROM ${identifier(role)}`);
+        } else {
+          await migration.query(`REVOKE INSERT,UPDATE,DELETE ON tenant_admission FROM ${identifier(role)}`);
+          await migration.query(`GRANT UPDATE(tenant_id,claimed_at) ON tenant_admission TO ${identifier(role)}`);
+        }
         const runtimeUrl = new URL(migrationUrl); runtimeUrl.username = role; runtimeUrl.password = password;
         const runtime = new Pool({ connectionString: runtimeUrl.toString(), max: 1, connectionTimeoutMillis: 15000 });
         try { await runtime.query("SELECT 1"); } finally { await runtime.end(); }

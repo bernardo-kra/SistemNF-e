@@ -1,5 +1,23 @@
 # Sistem API
 
+## Cadastro restrito de empresas e equipe
+
+O cadastro de empresas fica em `/administracao/`, exclusivo do administrador central do Sistem. Gestor de loja não recebe esse privilégio por ser `owner`; ele usa **Equipe e acessos** para cadastrar os funcionários da própria empresa. Visitantes não têm inscrição pública ou aprovação automática. Consumidores em Clientes não ganham login.
+
+A concessão central usa uma conta já existente e é feita por ferramenta local explícita, após aplicar as migrações: `control_003` e `tenant_004`. A conexão administrativa de migração deve estar em `server/.env.admin.local`, variável `SISTEM_MIGRATION_DATABASE_URL`, junto à configuração privada de runtime já preparada. Nunca envie URL/senha pelo chat ou argumento do processo. A ferramenta recusa outra conta administrativa e registra concessão/revogação, sem trocar a senha ou criar identidade.
+
+```powershell
+npm.cmd --prefix server run admin -- --grant-admin ID_EXPLICITO_DA_CONTA
+npm.cmd --prefix server run admin -- --revoke-admin ID_EXPLICITO_DA_CONTA
+npm.cmd --prefix server run admin -- --prepare-slot CHAVE_CONFIGURADA_DO_BANCO_VAZIO
+```
+
+Uma vaga é um banco operacional separado, previamente criado, migrado, vazio e configurado no mapa privado `TENANT_DATABASE_URLS`. `--prepare-slot` marca a identidade física da vaga; recusa banco associado/ocupado e aliases de bancos já registrados. Não cria banco ou recurso pago. A API nunca recebe URL/chave de banco nem credencial de migração. Sem vaga preparada, a tela informa indisponibilidade e não inicia uma empresa. `tenant_admission` vincula a vaga uma vez; não pode ser esvaziado/reaproveitado por timeout. O runtime não promove administradores e só pode preencher as colunas de vínculo do marker.
+
+Ao reaplicar `setup:neon`, o mapa de conexões operacionais adicionais já configuradas é preservado. Configuração anterior inválida ou com outro banco principal é recusada sem substituir o arquivo. Uma vaga foi preparada na publicação de 28/10; cada empresa adicional exige sua própria vaga preparada. Conexões e credenciais de infraestrutura ficam somente no ambiente privado.
+
+Cadastro comum: empresa, nome/e-mail/senha inicial do gestor e uma confirmação. Falhas intermediárias deixam a empresa inativa e oferecem **Concluir cadastro**, preservando a tentativa e exigindo a senha novamente. Repetir não altera uma credencial já criada. A empresa só é liberada com gestor e auditoria confirmados. O administrador central não ganha acesso operacional ou vínculo automático com a nova loja. Convite, envio de credenciais e recuperação de senha não fazem parte desta etapa.
+
 **Navegação unificada (27/10/2026):** acessar `/` para o sistema e `/entrar/` para o único login real. Produtos, estoque, clientes, vendas, OS, compras, financeiro e equipe usam a mesma sessão/empresa e as permissões do servidor. `/operacao/` redireciona para `/produtos/`; `/importar/` para `/compras/`. Demonstração exclusivamente em `/demo/`, sem autenticação fictícia nem importação de seus dados locais. Fiscal, relatórios completos e parceiros ficam identificados como preparação. Evidências no [registro UNI](../docs/15-auditoria-acessos-e-filtros.md).
 
 ## Neon e Render: homologação
