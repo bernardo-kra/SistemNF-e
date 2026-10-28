@@ -1,6 +1,6 @@
 # Sistem — gestão da loja
 
-**Revisão local validada em 28/10/2026:** cadastro de empresas selecionadas em `/administracao/`, exclusivo do administrador central explicitamente configurado; gestores cadastram a equipe em `/acessos/`. Não existe inscrição pública. Textos de acesso e campos responsivos revisados; uso/preparação no [guia administrativo](server/README.md#cadastro-restrito-de-empresas-e-equipe). Verificados 299 casos de interface, seis checks, 125 cenários backend em rodadas, tipos e build. Essa revisão de código ainda não foi publicada. Os registros solicitados foram inseridos diretamente no banco e conferidos online.
+**Publicado e validado em HTTPS em 28/10/2026:** [Administração do Sistem](https://sistemnf-e.onrender.com/administracao/) permite ao administrador central cadastrar empresas selecionadas; gestores cadastram a equipe em `/acessos/`. Cadastro público bloqueado. Textos e campos responsivos revisados. Commit publicado `2824cc2`, preservados Render Free/Neon Free e os registros existentes. Primeiro administrador configurado explicitamente e uma vaga operacional preparada. Verificados login, permissões de acesso anônimo, formulário em 320/390/768px, oito módulos, sessão compartilhada e logout online. Uso/preparação no [guia administrativo](server/README.md#cadastro-restrito-de-empresas-e-equipe); testes e limites no [registro de publicação](docs/15-auditoria-acessos-e-filtros.md).
 
 Next.js 16.4.2, React 19.3.1, TypeScript e CSS. Interface em português para uma loja de eletrônicos com assistência técnica.
 

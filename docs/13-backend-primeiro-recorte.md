@@ -1,5 +1,11 @@
 # Primeiro recorte do backend
 
+## Administração restrita publicada — 28/10/2026
+
+[Sistem online](https://sistemnf-e.onrender.com/) atualizado com `2824cc2`, deploy `dep-dbgn0m3bc2fs73b5pht0` confirmado `live`. Migrações `control_003`/`tenant_004`, concessão administrativa explícita e uma vaga operacional preparadas no ambiente privado, mantendo Render/Neon gratuitos. Gestores continuam administrando somente sua equipe; administrador central usa `/administracao/` para empresas selecionadas. Cadastro público bloqueado. Dados operacionais preservados, sem copiá-los para o repositório ou artefatos locais.
+
+Verificação em HTTPS aprovou login, painel, formulário responsivo, oito módulos, sessão, menu móvel e logout. Resultados, testes prévios e limites no [registro de publicação ADM/UXR](15-auditoria-acessos-e-filtros.md). Os registros seguintes são históricos.
+
 ## UNI publicado — navegação e login únicos — 27/10/2026
 
 **Estado atual:** [Abrir Sistem](https://sistemnf-e.onrender.com/) usa a navegação principal conectada e o único login em `/entrar/`. Commit da implementação `01cb489`, deploy `dep-dbgelfrl550s73bsa9dg` confirmado `live` no serviço existente, plano `free`. A publicação foi autorizada pelo usuário após concluir o código. Sem novo serviço, alterações de credenciais ou migrações nesta etapa. `/operacao/` virou compatibilidade para Produtos; demonstração explícita em `/demo/`.

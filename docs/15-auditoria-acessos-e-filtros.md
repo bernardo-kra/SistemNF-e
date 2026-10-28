@@ -1,12 +1,18 @@
 # Auditoria operacional, filtros e contas de funcionários
 
-## Publicação ADM/UXR — 28/10/2026 (em execução)
+## Publicação ADM/UXR — 28/10/2026 (concluída)
 
 Usuário autorizou publicar esta revisão. Critérios: commit sem credenciais/cadastros, serviço Render existente e projeto Neon preservados nos planos gratuitos, migrações idempotentes sem alteração dos registros operacionais, conta administrativa explicitamente conferida, acesso HTTPS com menu restrito e cadastro público recusado. A verificação online não cria empresas, funcionários ou lançamentos de negócio; dados permanecem exclusivamente no banco.
 
 Build completo aprovado novamente. Aplicadas `control_003` e `tenant_004`; concessão central executada somente para a identidade autenticada previamente indicada pelo usuário. Conferência criptográfica por leitura antes/depois confirmou dados preservados; os resumos ficaram somente em memória, sem cópia dos registros. Preparada uma vaga operacional vazia no mesmo projeto Neon Free e adicionada sua conexão ao ambiente privado do serviço Render Free, sem mudar credenciais existentes ou o outro serviço da workspace.
 
 Durante a preparação, identificado que reaplicar `setup:neon` descartaria conexões adicionais do mapa local. NEON06/07 reproduziram remoção da conexão e aceitação de configuração incompatível antes da correção. `neon-runtime.ts` agora preserva conexões compatíveis e recusa troca do banco principal/mapa inválido; `setup-neon.ts` usa esse resultado antes da escrita atômica. A revisão independente identificou apóstrofo válido em URL, mas incompatível com a serialização dotenv atual; NEON08 confirmou o RED e o guard passou a recusá-lo antes da escrita. Cinco cenários alvo aprovados; tipos servidor e reinspeção estática aprovados, sem bloqueadores. São três novos cenários além dos 125 já verificados em rodadas. Nenhum dado de empresa foi incluído no helper ou nos testes genéricos.
+
+**Resultado:** código `2824cc2` enviado ao GitHub e publicado no serviço existente, deploy `dep-dbgn0m3bc2fs73b5pht0` em estado `live`, processo de publicação com código 0. Preparação e conferência online terminaram com `success:true`. Build completo e compilação servidor aprovados, além das 299 verificações Playwright/seis checks anteriores e 128 cenários únicos backend verificados em rodadas, incluindo os três da preparação acrescentados nesta publicação.
+
+Chrome real em HTTPS aprovou saúde 200, consulta administrativa anônima 401, inscrição pública recusada, orientação do login, privilégio administrativo correto da conta indicada, painel 200 com vaga disponível, cookie seguro, formulário de quatro campos em 320/390/768px, oito módulos operacionais 200, zero novas consultas de identidade/documentos ao trocar módulos, filtros de data em 320px, acesso ao painel pelo menu móvel, sessão após reload e logout 401. Nenhuma empresa, funcionário ou lançamento foi criado durante a conferência online. Assinaturas criptográficas em memória confirmaram os dados operacionais preservados também após a navegação. Não foram gravados cadastros ou imagens dos registros em arquivos de evidência.
+
+Limites: criação efetiva de empresa/gestor, concorrência e acesso de gestor comum foram cobertos pelos testes de banco/HTTP isolados; a validação pública conferiu o painel/formulário sem cadastrar uma empresa não selecionada pelo usuário. Uma vaga foi preparada para o próximo cadastro, sem automatizar criação ilimitada de bancos. Planos gratuitos preservados, sem mudança no outro serviço do Render. Evidências privadas somente técnicas: `publish-preparation-result.json`, `publish-online-result.json`, logs de build/deploy e checks de preparação em `server/.local/validation/`. Aplicações locais e bancos de testes encerrados. Os registros abaixo descrevem a validação anterior a esta publicação.
 
 ## ADM/UXR — cadastro de empresas selecionadas e revisão de uso — 27/10/2026 (concluído localmente em 28/10)
 
