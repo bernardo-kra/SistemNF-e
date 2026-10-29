@@ -1,5 +1,7 @@
 # Financeiro: pagamentos, parcelas e fluxo de caixa
 
+**Atualização de estado — 28/10/2026:** acordos, entrada/parcelas, recebimentos manuais, recibos e caixa mínimo já estão conectados ao backend e publicados em homologação; ver [FIN-LIVE](11-financeiro-primeiro-recorte.md). Limite/exposição e consulta externa de crédito permanecem pendentes. A [consolidação de requisitos](17-requisitos-funcionais-e-nao-funcionais.md) diferencia as partes implementadas das propostas; descrições datadas abaixo preservam o histórico.
+
 Especificação revisada em 16/10/2026 para lojas de eletrônicos e manutenção de TI. Trata dos recebimentos dos clientes da loja; a mensalidade paga pela loja à plataforma pertence ao módulo de assinatura, em outro contexto.
 
 **Estado revisado em 17/10/2026:** especificação do módulo completo. Um primeiro recorte foi implementado com acordos de venda/OS, entrada e parcelas, recebimentos parciais manuais em dinheiro/Pix/transferência, recibos, movimentos novos e turno mínimo. O restante deste documento descreve a direção ampliada: cartão/cheque, pagamento misto numa mesma baixa, pagar, conciliação bancária, estorno e fluxo de caixa completo continuam pendentes. Nenhuma integração bancária foi contratada ou homologada. Decisões e evidências da entrega ficam no documento `11-financeiro-primeiro-recorte.md` do repositório da aplicação.
@@ -216,9 +218,9 @@ F1–F3 não são promessa de uma sprint. Antes de produção, precisam de backe
 
 ## Crédito combinado — solicitação de 26/10/2026
 
-**Estado: requisito solicitado; não implementado.** O usuário escolheu combinar consulta externa de CPF/CNPJ com controle interno de limite e atrasos da loja. O cadastro atual do backend ainda não contém CPF/CNPJ; parcelas e recebimentos continuam no protótipo local, enquanto vendas e OS conectadas declaram financeiro não integrado. Não calcular crédito disponível com valores da demonstração nem apresentar ausência de histórico como ausência de dívida.
+**Estado atualizado em 28/10/2026: crédito combinado solicitado, ainda não implementado.** O usuário escolheu combinar consulta externa de CPF/CNPJ com controle interno de limite e atrasos da loja. Parcelas, acordos, recebimentos e caixa mínimo já estão conectados no recorte [FIN-LIVE](11-financeiro-primeiro-recorte.md); isso não entrega limite, exposição de crédito ou consulta externa. Não calcular crédito disponível com valores da demonstração nem apresentar ausência de histórico como ausência de dívida.
 
-Esta solicitação antecipa o recorte básico de crédito que aparecia em F5: primeiro levar acordos, parcelas, pagamentos, alocações, recibos e caixa mínimo ao backend; depois controlar limite/exposição e integrar a consulta externa. Impressão/leitor e peças da OS continuam no backlog, sem serem dependências do crédito. O financeiro precisa preservar os invariantes do documento 11, sem importar valores locais ou legados automaticamente.
+Esta solicitação antecipou o recorte básico de crédito que aparecia em F5. A dependência financeira foi entregue no FIN-LIVE; os próximos passos são controlar limite/exposição e integrar a consulta externa após as decisões de provedor e política. Impressão/leitor e peças da OS continuam no backlog, sem serem dependências do crédito. O financeiro precisa preservar os invariantes do documento 11, sem importar valores locais ou legados automaticamente.
 
 ### Jornada proposta para o balcão
 

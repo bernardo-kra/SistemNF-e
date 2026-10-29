@@ -47,7 +47,8 @@ async function api(page: Page, options: { signed?: boolean; rights?: string[]; m
       } else if (path.includes("/customers/") && request.method() === "PATCH") {
         state.mutations.push({ path, method: request.method(), body: request.postDataJSON() });
         status = options.editConflict ? 409 : 200; body = { tenantId: company, customer: { ...customer, ...request.postDataJSON(), version: 2 } };
-      } else if (path.endsWith("/customers")) body = pageData(state.contacts);
+      } else if (path.endsWith("/branding")) body = { tenantId: company, branding: { version: 0, backgroundOpacity: 10, logo: null, background: null, updatedAt: null, updatedBy: null } };
+      else if (path.endsWith("/customers")) body = pageData(state.contacts);
       else if (path.endsWith("/products")) {
         if (company === tenantA && options.productGate) await options.productGate;
         body = pageData([product(company)]);
@@ -182,7 +183,11 @@ test("UNI11 recursos pendentes usam o mesmo contexto e indicam preparação sem 
   await expect(nav(page)).toBeVisible(); await expect(page.getByRole("main")).toContainText(/em preparação/i);
   await nav(page).getByRole("link", { name: "Relatórios", exact: true }).click();
   await expect(page.getByRole("main")).toContainText(/em preparação/i);
-  expect(state.identityReads).toBe(1); expect(state.dataReads).toEqual([]);
+  expect(state.identityReads).toBe(1);
+  // Brand metadata belongs to the shared company header; pending modules still read no domain data.
+  const brandingPath = `/api/v1/tenants/${tenantA}/branding`;
+  expect(state.dataReads.filter((path) => path !== brandingPath)).toEqual([]);
+  await expect.poll(() => state.dataReads.filter((path) => path === brandingPath).length).toBe(1);
 });
 
 test("UNI12 demonstração é explícita, mantém links sob demo e não pede segundo login", async ({ page }) => {

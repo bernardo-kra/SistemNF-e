@@ -81,6 +81,12 @@ Estado/testes e limites em [Primeiro recorte do backend](../docs/13-backend-prim
 
 ## Desenvolvimento local no Windows
 
+### Personalização da empresa — revisão local BR
+
+O gestor configura logo/fundo/intensidade em Configurações → Personalização da loja; funcionários ativos veem a marca e quem consulta OS pode abrir seu comprovante. `tenant_005` guarda imagens normalizadas e configuração no banco operacional. Não há diretório de uploads, URL de imagem externa, bucket ou variável de ambiente nova. PNG/JPG/WebP de até1MiB por arquivo, normalizados no servidor; sem SVG/animação. API e contratos em [Personalização da empresa](../docs/20-personalizacao-da-empresa.md).
+
+Código/testes são locais. Antes de publicar, reaplicar migrações com credencial administrativa em cada banco operacional configurado, incluindo vagas de novas empresas. Preservar o mapa adicional de conexões não migra esses bancos automaticamente. `npm.cmd run build` não executa migração nem provisiona serviço. Testes e smokes usam bancos isolados e imagens genéricas, sem carga no banco da empresa.
+
 Use uma versão Node.js compatível com `engines` do manifesto. Em `D:\SistemNF-e\web\server`:
 
 ```powershell

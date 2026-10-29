@@ -4,6 +4,7 @@ import { ShoppingBag, Wrench, UsersRound, Package, Wallet, ClipboardList } from 
 import { PageHeader } from "@/components/ui";
 import { useWorkspace } from "./workspace-session";
 import styles from "./workspace.module.css";
+import { BrandingSettings } from "./company-branding";
 const actions = [
   { href: "/vendas/?novo=1", label: "Nova venda", permission: "sales.create", description: "Produtos, entrega e condições de pagamento no mesmo atendimento.", icon: ShoppingBag },
   { href: "/ordens/?novo=1", label: "Nova ordem de serviço", permission: "orders.create", description: "Registre o equipamento, o serviço e o técnico responsável.", icon: Wrench },
@@ -24,5 +25,5 @@ export function WorkspacePending({ title }: { title: string }) {
 }
 export function WorkspaceSettings() {
   const { identity, tenant } = useWorkspace(), company = identity!.tenants.find((entry) => entry.id === tenant)!;
-  return <><PageHeader eyebrow="SUA EMPRESA" title="Configurações" description="Sua empresa e sua conta de acesso." /><section className={styles.pending}><h2>{company.name}</h2><p>{identity!.user.name}<br />{identity!.user.email}</p>{company.permissions.includes("team.manage") && <Link href="/acessos/">Gerenciar funcionários e permissões</Link>}<p>As configurações fiscais e os demais ajustes da empresa estão em preparação.</p></section></>;
+  return <><PageHeader eyebrow="SUA EMPRESA" title="Configurações" description="Sua empresa, sua conta e a apresentação das ordens de serviço." /><section className={styles.pending}><h2>{company.name}</h2><p>{identity!.user.name}<br />{identity!.user.email}</p>{company.permissions.includes("team.manage") && <Link href="/acessos/">Gerenciar funcionários e permissões</Link>}<p>As configurações fiscais e os demais ajustes da empresa estão em preparação.</p></section><BrandingSettings tenant={tenant} companyName={company.name} canManage={company.permissions.includes("team.manage")} /></>;
 }

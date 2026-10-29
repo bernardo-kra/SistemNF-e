@@ -151,7 +151,7 @@ function putProduct(domain: Domain, input: Body, old?: RecordRow) {
   return domain.put("product", body, old);
 }
 function identityFields(body: Body, permitted: string[]) { return Object.fromEntries(permitted.filter((key) => Object.hasOwn(body, key)).map((key) => [key, body[key]])); }
-const auditValues: Record<Kind, string[]> = { product: ["sku", "name", "category", "unit", "costCents", "salePriceCents", "active", "serialized", "attributes", "gtin", "ncm"], sale: ["status", "totalCents"], order: ["stage", "technicianId", "laborCents", "approved", "tested", "due"], purchase: ["status"], technician: [], link: [] };
+const auditValues: Record<Kind, string[]> = { product: ["sku", "name", "category", "unit", "costCents", "salePriceCents", "active", "serialized", "attributes", "gtin", "ncm"], sale: ["status", "grossCents", "discountCents", "totalCents"], order: ["stage", "technicianId", "laborCents", "approved", "tested", "due"], purchase: ["status"], technician: [], link: [] };
 
 async function persist(client: PoolClient, domain: Domain, requestId: string, type: string, fingerprint: string, result: ResultRow) {
   await client.query("UPDATE operational_coordination SET sale_number=$1,order_number=$2 WHERE id=1", [domain.numbers.sale, domain.numbers.order]);
@@ -216,14 +216,18 @@ async function apply(client: PoolClient, domain: Domain, type: string, data: Bod
     if (!Array.isArray(data.items) || !data.items.length || data.items.length > 100) throw invalidInput();
     const grouped = new Map<string, Body>();
     for (const value of data.items) {
-      const item = inputRecord(value); allowedKeys(item, ["productId", "quantity", "version"]);
+      const item = inputRecord(value); allowedKeys(item, ["productId", "quantity", "version", "discountCents"]);
       const product = domain.get("product", item.productId); domain.version(product, item.version); const quantity = integer(item.quantity, 1, 1000000);
       if (!product.body.active || product.body.serialized || product.body.salePriceCents === null) throw conflict();
-      const previous = grouped.get(product.id); grouped.set(product.id, { productId: product.id, name: product.body.name, quantity: integer((previous?.quantity ?? 0) + quantity, 1, 1000000), unitPriceCents: product.body.salePriceCents });
+      const grossCents = total(quantity * product.body.salePriceCents), discountCents = item.discountCents === undefined ? 0 : integer(item.discountCents, 0, grossCents);
+      if (discountCents > 0) need(access, "sales.discount");
+      const previous = grouped.get(product.id);
+      grouped.set(product.id, { productId: product.id, name: product.body.name, quantity: integer((previous?.quantity ?? 0) + quantity, 1, 1000000), unitPriceCents: product.body.salePriceCents,
+        grossCents: total((previous?.grossCents ?? 0) + grossCents), discountCents: total((previous?.discountCents ?? 0) + discountCents), totalCents: total((previous?.totalCents ?? 0) + grossCents - discountCents) });
     }
-    const items = [...grouped.values()]; let amount = 0;
-    for (const item of items) { amount = total(amount + total(item.quantity * item.unitPriceCents)); domain.move(item.productId, 0, item.quantity, "Reserva de venda"); }
-    return domain.put("sale", { number: domain.nextNumber("sale"), customerId: buyer.id, customerName: buyer.name, items, totalCents: amount, status: "confirmed", financeStatus: "not_integrated" });
+    const items = [...grouped.values()]; let amount = 0, grossCents = 0, discountCents = 0;
+    for (const item of items) { amount = total(amount + item.totalCents); grossCents = total(grossCents + item.grossCents); discountCents = total(discountCents + item.discountCents); domain.move(item.productId, 0, item.quantity, "Reserva de venda"); }
+    return domain.put("sale", { number: domain.nextNumber("sale"), customerId: buyer.id, customerName: buyer.name, items, grossCents, discountCents, totalCents: amount, status: "confirmed", financeStatus: "not_integrated" });
   }
   if (type === "sale.deliver") {
     allowedKeys(data, ["id", "version"]); const row = domain.get("sale", data.id); if (row.body.status === "delivered") return row; domain.version(row, data.version);
@@ -313,6 +317,13 @@ export async function executeOperation(access: OperationAccess, raw: unknown) {
   const requestId = requireUuid(input.requestId), type = text(input.type, 40), data = inputRecord(input.data);
   const permission = commandPermissions[type]; if (!permission) throw invalidInput(); need(access, permission);
   if (type === "sale.checkout") { need(access, "finance.agreements.create"); if (data.deliver === true) need(access, "sales.deliver"); if (data.payment !== undefined) need(access, "finance.receive"); }
+  // Revalidate discount authority before replay; an old request is not a lasting grant.
+  if (["sale.confirm", "sale.checkout"].includes(type) && Array.isArray(data.items)) {
+    for (const item of data.items) {
+      const discount = inputRecord(item).discountCents;
+      if (discount !== undefined && integer(discount, 0, Number.MAX_SAFE_INTEGER) > 0) need(access, "sales.discount");
+    }
+  }
   if (type === "agreement.create") { if (data.sourceType === "order") need(access, "orders.read"); else if (data.sourceType === "sale") need(access, "sales.read"); }
   const fingerprint = createHash("sha256").update(canonical({ type, data })).digest("hex");
   let previous: Body | undefined;

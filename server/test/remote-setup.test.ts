@@ -13,9 +13,9 @@ test("NEON01 preparação remota reaplicável preserva dados e separa permissõe
     const control = new Pool({ connectionString: first.controlUrl });
     const tenant = new Pool({ connectionString: first.tenantUrl });
     try {
-      // ADM adds central admission and the physical operational vacancy marker.
+      // ADM/BR preserve previous migrations and add company appearance to the tenant database.
       assert.equal((await control.query("SELECT count(*)::int AS n FROM schema_migrations")).rows[0].n, 3);
-      assert.equal((await tenant.query("SELECT count(*)::int AS n FROM schema_migrations")).rows[0].n, 4);
+      assert.equal((await tenant.query("SELECT count(*)::int AS n FROM schema_migrations")).rows[0].n, 5);
       await assert.rejects(tenant.query("CREATE TABLE should_fail(id int)"));
       await assert.rejects(control.query("DELETE FROM schema_migrations"));
       await assert.rejects(tenant.query("UPDATE audit_events SET action='forged'"));

@@ -80,9 +80,15 @@ function installmentDto(row: Json) {
   const amountCents = cents(row.amount_cents), paidCents = cents(row.paid_cents);
   return { id: row.id, agreementId: row.agreement_id, customerId: row.customer_id, customerName: row.customer_name, sourceType: row.source_type, sourceId: row.source_id, sourceLabel: row.source_label, kind: row.kind, number: row.number, count: row.count, amountCents, paidCents, balanceCents: integer(amountCents - paidCents), due: row.due, createdAt: row.created_at.toISOString() };
 }
+function paymentSource(data: Json): { type: "order" | "sale"; id: string } | null {
+  if (data.sourceType === undefined && data.sourceId === undefined) return null;
+  if (data.sourceType !== "order" && data.sourceType !== "sale") throw invalidInput();
+  return { type: data.sourceType, id: requireUuid(data.sourceId) };
+}
 export async function receivePayment(client: PoolClient, access: FinanceAccess, now: Date, raw: unknown): Promise<FinanceRecord> {
   financeNeed(access, "finance.receive");
-  const data = inputRecord(raw); allowedKeys(data, ["customerId", "amountCents", "method", "accountId", "shiftId", "reference", "creditConfirmed", "tenderedCents", "allocations"]);
+  const data = inputRecord(raw); allowedKeys(data, ["customerId", "amountCents", "method", "accountId", "shiftId", "reference", "creditConfirmed", "tenderedCents", "allocations", "sourceType", "sourceId"]);
+  const source = paymentSource(data);
   const customerId = requireUuid(data.customerId), amountCents = integer(data.amountCents, 1), accountId = requireUuid(data.accountId);
   const customer = (await client.query("SELECT id,name FROM customers WHERE id=$1", [customerId])).rows[0]; if (!customer) throw notFound();
   if (!["cash", "pix", "transfer"].includes(data.method as string) || typeof data.creditConfirmed !== "boolean") throw invalidInput();
@@ -102,7 +108,9 @@ export async function receivePayment(client: PoolClient, access: FinanceAccess, 
     if (data.tenderedCents !== undefined && data.tenderedCents !== amountCents) throw invalidInput();
   }
   const rows = (await client.query(`${installmentQuery} WHERE g.customer_id=$1 ORDER BY i.due,i.created_at,i.id`, [customerId])).rows.map(installmentDto).filter((row) => row.balanceCents > 0);
-  const outstanding = integer(rows.reduce((sum, row) => sum + row.balanceCents, 0)); if (amountCents > outstanding) throw conflict();
+  const outstanding = integer(rows.reduce((sum, row) => sum + row.balanceCents, 0));
+  const eligibleRows = source ? rows.filter((row) => row.sourceType === source.type && row.sourceId === source.id) : rows;
+  if (amountCents > integer(eligibleRows.reduce((sum, row) => sum + row.balanceCents, 0))) throw conflict();
   let allocations: { installmentId: string; amountCents: number }[];
   if (data.allocations !== undefined) {
     if (!Array.isArray(data.allocations) || !data.allocations.length || data.allocations.length > 100) throw invalidInput();
@@ -113,11 +121,11 @@ export async function receivePayment(client: PoolClient, access: FinanceAccess, 
     if (integer(allocations.reduce((sum, row) => sum + row.amountCents, 0)) !== amountCents) throw invalidInput();
   } else {
     let remaining = amountCents; allocations = [];
-    for (const row of rows) { if (!remaining) break; const amount = Math.min(remaining, row.balanceCents); allocations.push({ installmentId: row.id, amountCents: amount }); remaining -= amount; }
+    for (const row of eligibleRows) { if (!remaining) break; const amount = Math.min(remaining, row.balanceCents); allocations.push({ installmentId: row.id, amountCents: amount }); remaining -= amount; }
     if (remaining || allocations.length > 100) throw invalidInput("Receba até 100 parcelas por operação.");
   }
   const details = allocations.map((allocation) => {
-    const row = rows.find((entry) => entry.id === allocation.installmentId);
+    const row = eligibleRows.find((entry) => entry.id === allocation.installmentId);
     if (!row || allocation.amountCents > row.balanceCents) throw conflict();
     return { ...allocation, sourceType: row.sourceType, sourceId: row.sourceId, sourceLabel: row.sourceLabel, due: row.due, remainingCents: row.balanceCents - allocation.amountCents };
   });
@@ -163,7 +171,8 @@ function pagination(query: Json) {
 }
 export async function readFinance(access: FinanceAccess, resource: string, raw: unknown) {
   financeNeed(access, "finance.read"); const query = inputRecord(raw);
-  allowedKeys(query, ["customerId", "accountId", "q", "status", "limit", "offset"]); const page = pagination(query);
+  allowedKeys(query, ["customerId", "accountId", "q", "status", "limit", "offset", "sourceType", "sourceId"]); const page = pagination(query);
+  const source = paymentSource(query); if (source && resource !== "installments") throw invalidInput();
   const customerId = query.customerId === undefined ? null : requireUuid(query.customerId), accountId = query.accountId === undefined ? null : requireUuid(query.accountId);
   const q = query.q === undefined ? "" : text(query.q, 100, true), status = query.status ?? "all";
   if (typeof status !== "string" || !["all", "open", "overdue"].includes(status)) throw invalidInput();
@@ -185,8 +194,9 @@ export async function readFinance(access: FinanceAccess, resource: string, raw: 
       const shiftDtos = shifts.map((row) => dto(projectFinance("shift", row)));
       result = { items: rows.map((row) => ({ id: row.id, customerId: row.id, customerName: row.name, outstandingCents: cents(row.outstanding), overdueCents: cents(row.overdue), paidCents: cents(row.paid) })), total: count, ...page, accounts: accountDtos, shifts: shiftDtos, asOf };
     } else if (resource === "installments") {
-      const clauses = "($1::uuid IS NULL OR g.customer_id=$1)" + (status === "open" ? " AND i.amount_cents>COALESCE(p.paid,0)" : status === "overdue" ? " AND i.amount_cents>COALESCE(p.paid,0) AND i.due<$2::date" : "");
+      let clauses = "($1::uuid IS NULL OR g.customer_id=$1)" + (status === "open" ? " AND i.amount_cents>COALESCE(p.paid,0)" : status === "overdue" ? " AND i.amount_cents>COALESCE(p.paid,0) AND i.due<$2::date" : "");
       const values: unknown[] = status === "overdue" ? [customerId, asOf] : [customerId];
+      if (source) { values.push(source.type, source.id); clauses += ` AND g.source_type=$${values.length - 1} AND g.source_id=$${values.length}::uuid`; }
       const count = (await client.query(`SELECT count(*)::int AS total FROM (${installmentQuery} WHERE ${clauses}) x`, values)).rows[0].total;
       const rows = (await client.query(`${installmentQuery} WHERE ${clauses} ORDER BY i.due,i.created_at,i.id LIMIT $${values.length + 1} OFFSET $${values.length + 2}`, [...values, page.limit, page.offset])).rows;
       result = { items: rows.map(installmentDto), total: count, ...page };

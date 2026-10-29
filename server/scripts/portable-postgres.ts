@@ -138,6 +138,8 @@ export async function createLocalDatabase(admin: Pool, credentials: LocalCredent
     }
     const admissionEvents = await migrationPool.query("SELECT to_regclass('public.company_admission_events') AS name");
     if (admissionEvents.rows[0].name) await migrationPool.query(`REVOKE UPDATE,DELETE ON company_admission_events FROM ${identifier(runtimeUser)}`);
+    const brandingRequests = await migrationPool.query("SELECT to_regclass('public.company_branding_requests') AS name");
+    if (brandingRequests.rows[0].name) await migrationPool.query(`REVOKE UPDATE,DELETE ON company_branding_requests FROM ${identifier(runtimeUser)}`);
   };
   return { databaseName, migrationPool, runtimeUser,
     runtimeUrl: databaseUrl(credentials, databaseName, runtimeUser, password), grantRuntime };

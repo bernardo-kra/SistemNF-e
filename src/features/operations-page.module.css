@@ -17,5 +17,15 @@
 .review small { color: #61738c; line-height: 1.5; }
 .saleLine { display: grid; grid-template-columns: minmax(180px,1fr) 110px auto; align-items: end; gap: 12px; padding: 12px; border: 1px solid #e2e9f3; border-radius: 8px; }
 .saleLine button { padding: 10px 0; font-size: 12px; color: #9f3544; }
+.saleLine > * { min-width: 0; }
+.salePricing { grid-column: 1 / -1; display: grid; gap: 8px; min-width: 0; overflow-wrap: anywhere; }
+.salePricing p, .salePricing small { margin: 0; font-size: 12px; line-height: 1.6; color: #526783; }
+.salePricing button { color: #2455c8; text-align: left; justify-self: start; }
+.saleTotals { display: grid; gap: 6px; padding: 12px; border-radius: 8px; background: #f0f5fc; font-size: 14px; }
+.saleDetails { margin-top: 8px; max-width: 400px; white-space: normal; overflow-wrap: anywhere; }
+.saleDetails summary { cursor: pointer; color: #2455c8; }
+.saleDetails ul { padding-left: 18px; }
+.saleDetails li { margin: 8px 0; }
+.saleDetails li span { display: block; font-size: 12px; line-height: 1.6; }
 .values { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 11px; background: #f5f8fc; padding: 12px; border-radius: 6px; }
 @media(max-width: 700px) { .saleLine { grid-template-columns: minmax(0,1fr) 85px; }.saleLine button { grid-column: 1/-1; } .purchase { padding: 16px; }.tabs { width: 100%; }.tabs button { flex: 1; padding: 10px 12px; } }

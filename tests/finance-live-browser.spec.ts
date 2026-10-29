@@ -1,9 +1,19 @@
+import { selectSaleProduct } from "./helpers/product-choice";
 import { expect, test, type Page } from "@playwright/test";
 
-// QA independente: respostas controladas da API. Integração real é verificação separada.
+// FIN-UI definido pelo QA independente; DSC-UI pelo coordenador, antes do código. API controlada.
 const tenantId = "10000000-0000-4000-8000-000000000001";
 const customer = { id: "10000000-0000-4000-8000-000000000010", name: "Cliente financeiro QA", type: "Pessoa física", active: true, version: 1 };
 const product = { id: "10000000-0000-4000-8000-000000000020", name: "Capa QA", sku: "CAPA-QA", gtin: "7891234567895", salePriceCents: 10000, costCents: 5000, category: "Capas", active: true, serialized: false, unit: "UN", version: 1, stock: { physical: 5, reserved: 0, available: 5, version: 1 } };
+const otherProduct = { ...product, id: "10000000-0000-4000-8000-000000000021", sku: "CABO-QA", name: "Cabo QA", salePriceCents: 5000 };
+
+test("DSC-UI05 venda salva exibe itens e desconto sem depender dos preços atuais; legado continua legível", async ({page}) => {
+  await connected(page);
+  const saved = {id:'saved-discount',number:8,customerName:customer.name,status:'delivered',totalCents:23500,grossCents:25000,discountCents:1500,items:[{productId:product.id,name:product.name,quantity:2,unitPriceCents:10000,grossCents:20000,discountCents:1500,totalCents:18500},{productId:otherProduct.id,name:otherProduct.name,quantity:1,unitPriceCents:5000,grossCents:5000,discountCents:0,totalCents:5000}]};
+  await page.route('**/operations/sales?**',route=>route.fulfill({json:{tenantId,items:[saved,{id:'legacy',number:7,status:'confirmed',customerName:customer.name,totalCents:10000,items:[{name:'Produto antigo QA',quantity:1,unitPriceCents:10000}]}],total:2,limit:25,offset:0},headers:{'access-control-allow-origin':'http://127.0.0.1:3000','access-control-allow-credentials':'true'}}));
+  await page.goto('/vendas/');const row=page.getByRole('row').filter({has:page.getByText('Venda 8',{exact:true})});await row.getByText('Itens da venda (2)',{exact:true}).click();await expect(row).toContainText('185,00');await expect(row).toContainText('15,00');await expect(row).toContainText('50,00');
+  const legacy=page.getByRole('row').filter({has:page.getByText('Venda 7',{exact:true})});await legacy.getByText('Itens da venda (1)',{exact:true}).click();await expect(legacy).toContainText('Produto antigo QA');await expect(legacy).toContainText('100,00');
+});
 const bank = { id: "10000000-0000-4000-8000-000000000030", name: "Banco QA", type: "bank", active: true, balanceCents: 0, version: 1 };
 const cash = { id: "10000000-0000-4000-8000-000000000031", name: "Caixa QA", type: "cash", active: true, balanceCents: 0, version: 1 };
 const shift = { id: "10000000-0000-4000-8000-000000000040", accountId: cash.id, status: "open", openedBy: "manager-qa", openedAt: "2026-10-26T12:00:00Z", openingBalanceCents: 0, version: 1 };
@@ -18,7 +28,7 @@ function paid(amountCents = 15000) {
   return { id: "10000000-0000-4000-8000-000000000060", customerId: customer.id, amountCents, allocations, receipt: { code: "REC-QA", companyName: "Loja QA", customerName: customer.name, amountCents, method: "pix", accountName: bank.name, receivedAt: "2026-10-26T12:00:00Z", receivedBy: "manager-qa", reference: "Pix conferido", tenderedCents: amountCents, changeCents: 0, allocations, remainingCents: 30000 - amountCents } };
 }
 type Handler = (input: any, index: number) => Promise<{ status?: number; body: any }> | { status?: number; body: any };
-async function connected(page: Page, options: { rights?: string[]; command?: Handler; openShift?: boolean; receiptGate?: Promise<void>; receiptHistory?: boolean; pricePending?: boolean; emptyStock?: boolean } = {}) {
+async function connected(page: Page, options: { rights?: string[]; products?: any[]; command?: Handler; openShift?: boolean; receiptGate?: Promise<void>; receiptHistory?: boolean; pricePending?: boolean; emptyStock?: boolean } = {}) {
   const commands: any[] = [], queries: string[] = [];
   let shifts = options.openShift ? [shift] : [], lastPayment = paid();
   let catalogProduct: any = { ...product, salePriceCents: options.pricePending ? null : product.salePriceCents, stock: { ...product.stock, ...(options.emptyStock ? { physical: 0, available: 0 } : {}) } };
@@ -50,7 +60,7 @@ async function connected(page: Page, options: { rights?: string[]; command?: Han
     else if (path.endsWith("/payments")) result = { body: pageData(options.receiptHistory ? [paid()] : []) };
     else if (path.includes("/payments/")) { if (options.receiptGate) await options.receiptGate; result = { body: { tenantId, payment: lastPayment } }; }
     else if (path.endsWith("/customers")) result = { body: pageData([customer]) };
-    else if (path.endsWith("/products")) result = { body: pageData([catalogProduct]) };
+    else if (path.endsWith("/products")) result = { body: pageData(options.products ?? [catalogProduct]) };
     else result = { body: pageData([]) };
     await route.fulfill({ status: result.status ?? 200, headers, json: result.body });
   });
@@ -63,10 +73,9 @@ async function openSale(page: Page) {
   if (await menu.isVisible()) await menu.click();
   await page.getByRole("link", { name: "Vendas", exact: true }).click(); await page.getByRole("button", { name: "Nova venda", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Nova venda", exact: true });
-  await expect(dialog.getByLabel("Cliente", { exact: true }).locator("option")).toHaveCount(2);
-  await dialog.getByLabel("Cliente", { exact: true }).selectOption(customer.id);
-  await expect(dialog.getByLabel("Produto 1", { exact: true }).locator("option")).toHaveCount(2);
-  await dialog.getByLabel("Produto 1", { exact: true }).selectOption(product.id); return dialog;
+  await dialog.getByRole("combobox", { name: "Cliente", exact: true }).fill(customer.name);
+  await dialog.getByRole("option", { name: customer.name }).click();
+  await selectSaleProduct(dialog, product.name, 1); return dialog;
 }
 async function openReceive(page: Page) {
   await page.goto("/produtos/"); await page.getByRole("link", { name: "Financeiro", exact: true }).click();
@@ -95,7 +104,7 @@ test("FIN-UI02 erro de conclusão conserva condição, carrinho e identidade da 
   const dialog = await openSale(page); await dialog.getByLabel("Vencimento", { exact: true }).fill("2100-01-30");
   await dialog.getByLabel("Entregar agora", { exact: true }).uncheck();
   await dialog.getByRole("button", { name: "Concluir venda", exact: true }).click();
-  await expect(dialog.getByRole("alert")).toBeVisible(); await expect(dialog.getByLabel("Vencimento", { exact: true })).toHaveValue("2100-01-30"); await expect(dialog.getByLabel("Produto 1", { exact: true })).toHaveValue(product.id);
+  await expect(dialog.getByRole("alert")).toBeVisible(); await expect(dialog.getByLabel("Vencimento", { exact: true })).toHaveValue("2100-01-30"); await expect(dialog.getByLabel("Produto 1", { exact: true })).toHaveValue(product.name);
   await dialog.getByRole("button", { name: "Concluir venda", exact: true }).click(); await expect(dialog).toHaveCount(0);
   expect(commands).toHaveLength(2); expect(commands[0].requestId).toBe(commands[1].requestId); expect(commands[0].data).toEqual(commands[1].data);
 });
@@ -103,7 +112,7 @@ test("FIN-UI02 erro de conclusão conserva condição, carrinho e identidade da 
 test("FIN-UI03 leitura repetida do SKU agrega quantidade sem abrir outra linha ou confirmar a venda", async ({ page }) => {
   const { commands } = await connected(page); await page.goto("/produtos/"); await page.getByRole("link", { name: "Vendas", exact: true }).click(); await page.getByRole("button", { name: "Nova venda", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Nova venda", exact: true }), reader = dialog.getByLabel("Ler código ou SKU", { exact: true });
-  await reader.fill(product.sku); await reader.press("Enter"); await expect(dialog.getByLabel("Produto 1", { exact: true })).toHaveValue(product.id);
+  await reader.fill(product.sku); await reader.press("Enter"); await expect(dialog.getByLabel("Produto 1", { exact: true })).toHaveValue(product.name);
   await reader.fill(product.sku); await reader.press("Enter"); await expect(dialog.getByLabel("Quantidade 1", { exact: true })).toHaveValue("2");
   await expect(dialog.getByLabel("Produto 2", { exact: true })).toHaveCount(0); expect(commands).toHaveLength(0);
 });
@@ -121,7 +130,7 @@ test("FIN-UI15 código ambíguo fora do catálogo carregado não escolhe produto
   await page.goto("/produtos/"); await page.getByRole("link", { name: "Vendas", exact: true }).click();
   await page.getByRole("button", { name: "Nova venda", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Nova venda", exact: true });
-  await expect(dialog.getByLabel("Produto 1", { exact: true }).locator("option")).toHaveCount(2);
+  await expect(dialog.getByRole("combobox", { name: "Produto 1", exact: true })).toBeVisible();
   await dialog.getByLabel("Ler código ou SKU", { exact: true }).fill(product.gtin);
   await dialog.getByLabel("Ler código ou SKU", { exact: true }).press("Enter");
   await expect(dialog.getByRole("alert")).toContainText("mais de um produto");
@@ -174,7 +183,7 @@ test("FIN-UI08 abrir caixa no contexto não conclui venda nem perde carrinho e c
   await dialog.getByRole("button", { name: "Abrir caixa aqui", exact: true }).click();
   const child = page.getByRole("dialog", { name: "Abrir caixa", exact: true }); await child.getByLabel("Conta", { exact: true }).selectOption(cash.id);
   await child.getByRole("button", { name: "Confirmar abertura", exact: true }).click(); await expect(child).toHaveCount(0);
-  await expect(dialog.getByLabel("Cliente", { exact: true })).toHaveValue(customer.id); await expect(dialog.getByLabel("Produto 1", { exact: true })).toHaveValue(product.id); await expect(dialog.getByLabel("Condição de pagamento", { exact: true })).toHaveValue("cash");
+  await expect(dialog.getByLabel("Cliente", { exact: true })).toHaveValue(customer.name); await expect(dialog.getByLabel("Produto 1", { exact: true })).toHaveValue(product.name); await expect(dialog.getByLabel("Condição de pagamento", { exact: true })).toHaveValue("cash");
   expect(commands).toHaveLength(1); expect(commands[0].type).toBe("shift.open"); await expect(dialog.getByRole("button", { name: "Concluir venda", exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
@@ -219,7 +228,7 @@ test("FIN-UI12 preço pendente é resolvido na linha sem perder cliente/carrinho
   const action = dialog.getByRole("button", { name: "Definir preço aqui", exact: true }); await expect(action).toBeVisible(); await action.click();
   const child = page.getByRole("dialog", { name: "Definir preço", exact: true });
   await child.getByLabel("Preço de venda", { exact: true }).fill("25,00"); await child.getByRole("button", { name: "Salvar preço", exact: true }).click(); await expect(child).toHaveCount(0);
-  await expect(dialog.getByLabel("Cliente", { exact: true })).toHaveValue(customer.id); await expect(dialog.getByLabel("Produto 1", { exact: true })).toHaveValue(product.id); await expect(dialog.getByLabel("Condição de pagamento", { exact: true })).toHaveValue("later");
+  await expect(dialog.getByLabel("Cliente", { exact: true })).toHaveValue(customer.name); await expect(dialog.getByLabel("Produto 1", { exact: true })).toHaveValue(product.name); await expect(dialog.getByLabel("Condição de pagamento", { exact: true })).toHaveValue("later");
   expect(commands).toHaveLength(1); expect(commands[0].type).toBe("product.update"); expect(commands[0].data).toMatchObject({ id: product.id, version: 1, salePriceCents: 2500 });
 });
 
@@ -229,8 +238,8 @@ test("FIN-UI13 entrada de produto no contexto preserva condição e seleção se
   const action = dialog.getByRole("button", { name: "Registrar entrada aqui", exact: true }); await expect(action).toBeVisible(); await action.click();
   const child = page.getByRole("dialog", { name: "Registrar entrada", exact: true }); await child.getByLabel("Quantidade", { exact: true }).fill("2"); await child.getByLabel("Referência da entrada", { exact: true }).fill("Entrada conferida QA");
   await child.getByRole("button", { name: "Confirmar entrada", exact: true }).click(); await expect(child).toHaveCount(0);
-  await expect(dialog.getByLabel("Cliente", { exact: true })).toHaveValue(customer.id); await expect(dialog.getByLabel("Produto 1", { exact: true })).toHaveValue(product.id); await expect(dialog.getByLabel("Condição de pagamento", { exact: true })).toHaveValue("installments"); await expect(dialog.getByLabel("Entrada", { exact: true })).toHaveValue("20,00");
-  await expect(dialog.getByLabel("Produto 1", { exact: true }).locator(`option[value="${product.id}"]`)).toContainText("2 disponíveis"); expect(commands).toHaveLength(1); expect(commands[0].type).toBe("stock.receive"); expect(commands[0].data).toMatchObject({ productId: product.id, quantity: 2, reference: "Entrada conferida QA" });
+  await expect(dialog.getByLabel("Cliente", { exact: true })).toHaveValue(customer.name); await expect(dialog.getByLabel("Produto 1", { exact: true })).toHaveValue(product.name); await expect(dialog.getByLabel("Condição de pagamento", { exact: true })).toHaveValue("installments"); await expect(dialog.getByLabel("Entrada", { exact: true })).toHaveValue("20,00");
+  await expect(dialog.locator("#" + await dialog.getByLabel("Produto 1", { exact: true }).getAttribute("aria-describedby"))).toContainText("2 disponíveis"); expect(commands).toHaveLength(1); expect(commands[0].type).toBe("stock.receive"); expect(commands[0].data).toMatchObject({ productId: product.id, quantity: 2, reference: "Entrada conferida QA" });
 });
 
 test("FIN-UI14 Escape na abertura de caixa fecha somente o auxiliar e preserva a venda preenchida", async ({ page }) => {
@@ -239,6 +248,44 @@ test("FIN-UI14 Escape na abertura de caixa fecha somente o auxiliar e preserva a
   await dialog.getByRole("button", { name: "Abrir caixa aqui", exact: true }).click();
   const child = page.getByRole("dialog", { name: "Abrir caixa", exact: true }); await expect(child).toBeVisible();
   await page.keyboard.press("Escape"); await expect(child).toHaveCount(0); await expect(dialog).toBeVisible();
-  await expect(dialog.getByLabel("Cliente", { exact: true })).toHaveValue(customer.id); await expect(dialog.getByLabel("Produto 1", { exact: true })).toHaveValue(product.id); await expect(dialog.getByLabel("Condição de pagamento", { exact: true })).toHaveValue("cash");
+  await expect(dialog.getByLabel("Cliente", { exact: true })).toHaveValue(customer.name); await expect(dialog.getByLabel("Produto 1", { exact: true })).toHaveValue(product.name); await expect(dialog.getByLabel("Condição de pagamento", { exact: true })).toHaveValue("cash");
   expect(commands).toHaveLength(0);
+});
+
+test("DSC-UI01 vários produtos e desconto recalculam subtotal e parcelas sem chamadas por item", async ({ page }) => {
+  const { commands, queries } = await connected(page, { rights: [...rights, "sales.discount"], products: [product, otherProduct] });
+  await page.goto('/vendas/'); await page.getByRole('button', { name: 'Nova venda', exact: true }).click();
+  const dialog=page.getByRole('dialog',{name:'Nova venda',exact:true});
+  await dialog.getByRole('combobox',{name:'Cliente',exact:true}).fill(customer.name); await dialog.getByRole('option',{name:customer.name}).click();
+  await selectSaleProduct(dialog, product.name, 1); await dialog.getByLabel('Quantidade 1',{exact:true}).fill('2');
+  await dialog.getByRole('button',{name:'Adicionar produto',exact:true}).click(); await selectSaleProduct(dialog, otherProduct.name, 2);
+  await expect(dialog.getByLabel('Desconto total do item 1 (R$)',{exact:true})).toHaveCount(0);
+  await dialog.getByRole('button',{name:'Dar desconto ao item 1',exact:true}).click();
+  const before=queries.length; await dialog.getByLabel('Desconto total do item 1 (R$)',{exact:true}).fill('15,00');
+  await expect(dialog.getByTestId('sale-item-total-1')).toContainText('185,00'); await expect(dialog.getByTestId('sale-item-total-2')).toContainText('50,00');
+  await expect(dialog.getByTestId('sale-totals')).toContainText('250,00'); await expect(dialog.getByTestId('sale-totals')).toContainText('15,00'); await expect(dialog.getByTestId('sale-totals')).toContainText('235,00');
+  await dialog.getByLabel('Condição de pagamento',{exact:true}).selectOption('installments'); await dialog.getByLabel('Entrada',{exact:true}).fill('35,00'); await dialog.getByLabel('Número de parcelas',{exact:true}).fill('2');
+  await expect(dialog).toContainText('Parcela 1/2'); expect(queries.length).toBe(before);
+  await dialog.getByRole('button',{name:'Concluir venda',exact:true}).click(); await expect(dialog).toHaveCount(0);
+  expect(commands).toHaveLength(1); expect(commands[0].data.items).toEqual([{productId:product.id,quantity:2,version:1,discountCents:1500},{productId:otherProduct.id,quantity:1,version:1}]);
+  expect(commands[0].data.terms).toMatchObject({downPaymentCents:3500,installmentCount:2});
+});
+test("DSC-UI02 desconto maior que a linha bloqueia conclusão e pode ser removido", async ({page})=>{
+  const {commands}=await connected(page,{rights:[...rights,'sales.discount']});const dialog=await openSale(page);
+  await dialog.getByRole('button',{name:'Dar desconto ao item 1',exact:true}).click();await dialog.getByLabel('Desconto total do item 1 (R$)',{exact:true}).fill('100,01');
+  await expect(dialog.getByRole('button',{name:'Concluir venda',exact:true})).toBeDisabled();await expect(dialog).toContainText('O desconto não pode superar o valor do item');expect(commands).toHaveLength(0);
+  await dialog.getByRole('button',{name:'Remover desconto do item 1',exact:true}).click();await expect(dialog.getByTestId('sale-item-total-1')).toContainText('100,00');await expect(dialog.getByRole('button',{name:'Concluir venda',exact:true})).toBeEnabled();
+});
+test("DSC-UI03 perfil sem direito não oferece desconto; editor sem financeiro continua multi-itens",async({page})=>{
+  await connected(page,{rights:rights.filter(p=>!p.startsWith('finance.'))});const dialog=await openSale(page);
+  await expect(dialog.getByRole('button',{name:'Dar desconto ao item 1',exact:true})).toHaveCount(0);
+  await dialog.getByRole('button',{name:'Adicionar produto',exact:true}).click();await selectSaleProduct(dialog, product.name, 2);
+  await expect(dialog.getByTestId('sale-item-total-2')).toContainText('100,00');
+});
+test("DSC-UI04 mobile mantém desconto após falha e retoma a mesma tentativa",async({page})=>{
+  await page.setViewportSize({width:320,height:780});const {commands}=await connected(page,{rights:[...rights,'sales.discount'],command:(_input,n)=>n===1?{status:503,body:{error:{code:'SERVICE_UNAVAILABLE'}}}:{body:{tenantId,entity:{id:'sale-dsc',version:1}}}});
+  const dialog=await openSale(page);await dialog.getByRole('button',{name:'Dar desconto ao item 1',exact:true}).click();const discount=dialog.getByLabel('Desconto total do item 1 (R$)',{exact:true});await discount.fill('10,00');
+  await dialog.getByRole('button',{name:'Concluir venda',exact:true}).click();await expect(dialog.getByRole('alert')).toBeVisible();await expect(discount).toHaveValue('10,00');
+  const box=await discount.boundingBox();expect(box!.x).toBeGreaterThanOrEqual(0);expect(box!.x+box!.width).toBeLessThanOrEqual(320);
+  await dialog.getByRole('button',{name:'Concluir venda',exact:true}).click();await expect(dialog).toHaveCount(0);expect(commands).toHaveLength(2);expect(commands[0].requestId).toBe(commands[1].requestId);expect(commands[0].data).toEqual(commands[1].data);
 });

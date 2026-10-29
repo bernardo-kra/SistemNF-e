@@ -50,7 +50,7 @@ export async function prepareRemoteDatabases(input: Input) {
         for (const table of ["schema_migrations", "sistem_environment"]) {
           await migration.query(`REVOKE INSERT,UPDATE,DELETE ON ${identifier(table)} FROM ${identifier(role)}`);
         }
-        for (const table of scope === "control" ? ["access_audit_events"] : ["audit_events", "finance_agreements", "finance_installments", "finance_payments", "finance_allocations", "finance_movements"]) {
+        for (const table of scope === "control" ? ["access_audit_events"] : ["audit_events", "finance_agreements", "finance_installments", "finance_payments", "finance_allocations", "finance_movements", "company_branding_requests"]) {
           await migration.query(`REVOKE UPDATE,DELETE ON ${identifier(table)} FROM ${identifier(role)}`);
         }
         if (scope === "control") {

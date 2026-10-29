@@ -7,7 +7,11 @@ import { money, stages, type Stage } from "@/lib/domain";
 import { parsePurchaseXml } from "@/lib/purchases/xml";
 import type { PurchaseDocument, PurchaseDecision, PurchasePlan } from "@/lib/purchases/types";
 import { CheckoutEditor } from "./checkout";
-import { AgreementEditor, FinancePanel } from "./finance-live";
+import { AgreementEditor, FinancePanel, ReceiveEditor, ReceiptDialog } from "./finance-live";
+import { SaleItemPricing, SaleTotals, saleLineAmounts } from "./sale-item-pricing";
+import { CustomerPicker, type CustomerChoice } from "./customer-picker";
+import { ProductPicker, type ProductChoice } from "./product-picker";
+import { LiveOrderReceipt } from "./live-order-receipt";
 import styles from "./access-control.module.css";
 import op from "./operations-page.module.css";
 
@@ -49,10 +53,12 @@ export function OperationsPage({ resource = "products" }: { resource?: Resource 
   const [page, setPage] = useState<PageData | null>(null), [error, setError] = useState(""), [notice, setNotice] = useState("");
   const [query, setQuery] = useState(""), [search, setSearch] = useState(""), [status, setStatus] = useState("all"), [sort, setSort] = useState("name"), [dateField, setDateField] = useState("created"), [from, setFrom] = useState(""), [to, setTo] = useState(""), [offset, setOffset] = useState(0), [revision, setRevision] = useState(0);
   const [editor, setEditor] = useState<Editor | null>(null), [history, setHistory] = useState<{ row: Row; type: string } | null>(null), [busy, setBusy] = useState(false);
+  const [receiptId, setReceiptId] = useState<string | null>(null);
+  const [receiveOrder, setReceiveOrder] = useState<Row | null>(null), [paymentReceipt, setPaymentReceipt] = useState<Row | null>(null);
   const generation = useRef(0), opener = useRef<HTMLElement | null>(null);
   const company = identity?.tenants.find((entry) => entry.id === tenant), rights = company?.permissions ?? [];
   const allowed = (permission: string) => rights.includes(permission);
-  const clear = useCallback(() => { setPage(null); setEditor(null); setHistory(null); setNotice(""); setQuery(""); setSearch(""); setStatus("all"); setSort("name"); setDateField("created"); setFrom(""); setTo(""); setOffset(0); }, []);
+  const clear = useCallback(() => { setPage(null); setEditor(null); setHistory(null); setReceiptId(null); setReceiveOrder(null); setPaymentReceipt(null); setNotice(""); setQuery(""); setSearch(""); setStatus("all"); setSort("name"); setDateField("created"); setFrom(""); setTo(""); setOffset(0); }, []);
   useEffect(() => () => { generation.current++; }, []);
   useEffect(() => { const timer = setTimeout(() => setSearch(query), 300); return () => clearTimeout(timer); }, [query]);
   const fail = useCallback((failure: unknown) => {
@@ -102,9 +108,15 @@ export function OperationsPage({ resource = "products" }: { resource?: Resource 
               {resource === "products" ? <>{allowed("products.cost.read") && <th>Compra</th>}<th>Venda</th>{allowed("products.cost.read") && <th>Lucro estimado</th>}</> : resource === "stock" ? <><th>Físico</th><th>Reservado</th><th>Disponível</th></> : <><th>Situação</th><th>{resource === "orders" ? "Serviço" : "Total"}</th></>}
               <th>Alteração</th><th>Ações</th></tr></thead><tbody>{page.items.map((row) => {
                 const title = row.name ?? `${resource === "orders" ? "OS" : resource === "sales" ? "Venda" : "Compra"} ${row.number}`;
-                return <tr key={row.id}><td><strong>{title}</strong><small>{row.sku ?? row.customerName ?? row.supplierName}{row.equipment ? ` · ${row.equipment}` : ""}</small>{row.finance && <small>Recebido {money(row.finance.paidCents)} · Em aberto {money(row.finance.outstandingCents)}</small>}</td>
+                return <tr key={row.id}><td><strong>{title}</strong><small>{row.sku ?? row.customerName ?? row.supplierName}{row.equipment ? ` · ${row.equipment}` : ""}</small>{row.finance && <small>Recebido {money(row.finance.paidCents)} · Em aberto {money(row.finance.outstandingCents)}</small>}
+                  {resource === "sales" && Array.isArray(row.items) && <details className={op.saleDetails}><summary>Itens da venda ({row.items.length})</summary><ul>{row.items.map((item: Row, index: number) => <li key={`${item.productId ?? "legacy"}:${index}`}>
+                    <strong>{item.name}</strong><span>{item.quantity} × {money(item.unitPriceCents)} · Desconto: {money(item.discountCents ?? 0)} · Subtotal: {money(item.totalCents ?? item.quantity * item.unitPriceCents - (item.discountCents ?? 0))}</span>
+                  </li>)}</ul><p>Descontos da venda: {money(row.discountCents ?? 0)} · Total: {money(row.totalCents)}</p></details>}
+                </td>
                   {resource === "products" ? <>{allowed("products.cost.read") && <td>{row.costCents == null ? "Pendente" : money(row.costCents)}</td>}<td>{row.salePriceCents == null ? "Pendente" : money(row.salePriceCents)}</td>{allowed("products.cost.read") && <td>{row.costCents == null || row.salePriceCents == null ? "Não calculado" : money(row.salePriceCents - row.costCents)}</td>}</> : resource === "stock" ? <><td>{row.physical}</td><td>{row.reserved}</td><td>{row.available}</td></> : <><td>{resource === "orders" ? stages[row.stage as Stage]?.label : resource === "sales" ? row.status === "delivered" ? "Entregue" : "Confirmada" : row.status === "received" ? "Recebida" : row.status === "partial" ? "Parcial" : "Sem recebimento"}{resource === "orders" && <small>{row.technicianName}</small>}</td><td>{resource === "orders" ? money(row.laborCents) : resource === "sales" ? money(row.totalCents) : row.document?.totalCents == null ? "—" : money(row.document.totalCents)}</td></>}
                   <td>{accessDate(row.updatedAt)}<small>Cadastro: {accessDate(row.createdAt)}</small></td><td><div className={op.actions}>
+                    {resource === "orders" && allowed("orders.read") && <button aria-label={`Imprimir comprovante da OS ${row.number}`} onClick={(event) => { opener.current = event.currentTarget; setReceiptId(row.id); }}>Imprimir comprovante</button>}
+                    {resource === "orders" && row.agreementId && row.finance?.outstandingCents > 0 && allowed("finance.read") && allowed("finance.receive") && <button onClick={(event) => { opener.current = event.currentTarget; setReceiveOrder(row); }}>Receber OS {row.number}</button>}
                     {resource === "products" && allowed("products.update") && <button onClick={(event) => open({ kind: "product", row }, event.currentTarget)}>Editar produto</button>}
                     {(resource === "stock" || resource === "products") && allowed("stock.receive") && <button onClick={(event) => open({ kind: "stock", row }, event.currentTarget)}>Registrar entrada</button>}
                     {resource === "sales" && row.status === "confirmed" && allowed("sales.deliver") && <button disabled={busy} onClick={() => void immediate("sale.deliver", { id: row.id, version: row.version })}>Entregar venda</button>}
@@ -125,29 +137,27 @@ export function OperationsPage({ resource = "products" }: { resource?: Resource 
 
       {editor && (editor.kind === "prices" ? <PricesEditor key={tenant} tenant={tenant} onClose={close} onSaved={saved} onUnauthorized={fail} /> : editor.kind === "agreement" ? <AgreementEditor tenant={tenant} source={editor.row!} onClose={close} onSaved={saved} onUnauthorized={fail} /> : editor.kind === "sale" && allowed("finance.agreements.create") ? <CheckoutEditor key={tenant} tenant={tenant} actorId={identity!.user.id} rights={rights} auxiliary={AuxiliaryForm} onClose={close} onSaved={saved} onUnauthorized={fail} /> : <OperationEditor key={`${tenant}:${editor.kind}:${editor.row?.id ?? "new"}`} tenant={tenant} editor={editor} rights={rights} onClose={close} onSaved={saved} onUnauthorized={fail} generation={generation} />)}
       {history && <HistoryDialog key={`${tenant}:${history.row.id}`} tenant={tenant} value={history} onClose={close} onUnauthorized={fail} />}
+      {receiptId && <LiveOrderReceipt key={`${tenant}:${receiptId}`} tenant={tenant} orderId={receiptId} onClose={() => { setReceiptId(null); requestAnimationFrame(() => opener.current?.focus()); }} />}
+      {receiveOrder && <ReceiveEditor key={`${tenant}:${receiveOrder.id}`} tenant={tenant} actorId={identity!.user.id} rights={rights} customer={{ customerId: receiveOrder.customerId, customerName: receiveOrder.customerName }} source={{ type: "order", id: receiveOrder.id, label: `OS ${receiveOrder.number}` }} onUnauthorized={fail} onClose={() => { setReceiveOrder(null); requestAnimationFrame(() => opener.current?.focus()); }} onSaved={(payment) => { setReceiveOrder(null); setPaymentReceipt(payment); setRevision((old) => old + 1); }} />}
+      {paymentReceipt && <ReceiptDialog payment={paymentReceipt} onClose={() => { setPaymentReceipt(null); requestAnimationFrame(() => { if (opener.current?.isConnected) opener.current.focus(); else document.querySelector<HTMLElement>("main button")?.focus(); }); }} />}
   </>;
 }
 
 function OperationEditor({ tenant, editor, rights, onClose, onSaved, onUnauthorized, generation }: { tenant: string; editor: Editor; rights: string[]; onClose: () => void; onSaved: (text?: string) => void; onUnauthorized: (error: unknown) => void; generation: React.RefObject<number> }) {
   const row = editor.row, [draft, setDraft] = useState<Row>({ sku: row?.sku ?? "", name: row?.name ?? "", category: row?.category ?? "Geral", cost: priceText(row?.costCents), price: priceText(row?.salePriceCents), quantity: "1", reference: "", customerId: "", technicianId: row?.technicianId ?? "", equipment: "", issue: "", diagnosis: row?.diagnosis ?? "", due: row?.due ?? new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" }), labor: priceText(row?.laborCents ?? 0), active: row?.active ?? true, serialized: row?.serialized ?? false, allowUnsettled: false });
-  const [items, setItems] = useState([{ key: crypto.randomUUID(), productId: "", quantity: 1 }]), [customers, setCustomers] = useState<Row[]>([]), [products, setProducts] = useState<Row[]>([]), [technicians, setTechnicians] = useState<Row[]>([]);
-  const [customerSearch, setCustomerSearch] = useState(""), [productSearch, setProductSearch] = useState("");
+  const [items, setItems] = useState<{ key: string; productId: string; quantity: number; discount?: string }[]>([{ key: crypto.randomUUID(), productId: "", quantity: 1 }]), [products, setProducts] = useState<Row[]>([]), [technicians, setTechnicians] = useState<Row[]>([]);
+  const [selectedCustomer, setSelectedCustomer] = useState<CustomerChoice | null>(null);
   const [busy, setBusy] = useState(false), [error, setError] = useState(""), [auxiliary, setAuxiliary] = useState<"customer" | "technician" | "product" | null>(null);
   const attempt = useRef<{ content: string; id: string } | null>(null), alive = useRef(true), tag = useRef(generation.current);
   const has = (permission: string) => rights.includes(permission), set = (key: string, value: any) => setDraft((previous) => ({ ...previous, [key]: value }));
+  let saleTotal = 0, saleGross = 0, saleDiscount = 0, salePricingError = "";
+  if (editor.kind === "sale") { try { for (const item of items) {
+    const values = saleLineAmounts(products.find((product) => product.id === item.productId)?.salePriceCents ?? 0, item.quantity, item.discount);
+    saleTotal += values.totalCents; saleGross += values.grossCents; saleDiscount += values.discountCents;
+    if (![saleTotal, saleGross, saleDiscount].every(Number.isSafeInteger)) throw new Error("O total excede o limite suportado.");
+  } } catch (failure) { salePricingError = (failure as Error).message; } }
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   const invalidated = () => !alive.current || tag.current !== generation.current;
-  useEffect(() => {
-    if (!["sale", "order"].includes(editor.kind)) return;
-    const controller = new AbortController(); const timer = setTimeout(() => {
-      void accessRequest<PageData>(`${accessBase(tenant)}/customers?limit=100&q=${encodeURIComponent(customerSearch)}`, { signal: controller.signal }).then((data) => { if (!controller.signal.aborted && !invalidated()) setCustomers((old) => [...new Map([...old, ...data.items].map((entry) => [entry.id, entry])).values()]); }).catch((failure) => { if (!controller.signal.aborted && !invalidated()) setError(message(failure)); });
-    }, 250); return () => { clearTimeout(timer); controller.abort(); };
-  }, [tenant, customerSearch, editor.kind]);
-  useEffect(() => {
-    if (editor.kind !== "sale") return; const controller = new AbortController(); const timer = setTimeout(() => {
-      void accessRequest<PageData>(`${endpoint(tenant)}/products?limit=100&status=active&q=${encodeURIComponent(productSearch)}`, { signal: controller.signal }).then((data) => { if (!controller.signal.aborted && !invalidated()) setProducts((old) => [...new Map([...old, ...data.items].map((entry) => [entry.id, entry])).values()]); }).catch((failure) => { if (!controller.signal.aborted && !invalidated()) setError(message(failure)); });
-    }, 250); return () => { clearTimeout(timer); controller.abort(); };
-  }, [tenant, productSearch, editor.kind]);
   useEffect(() => {
     if (!["order", "editOrder"].includes(editor.kind)) return; const controller = new AbortController();
     void accessRequest<PageData>(`${endpoint(tenant)}/technicians?limit=100`, { signal: controller.signal }).then((data) => { if (!controller.signal.aborted && !invalidated()) setTechnicians(data.items); }).catch((failure) => { if (!controller.signal.aborted && !invalidated()) setError(message(failure)); }); return () => controller.abort();
@@ -159,13 +169,13 @@ function OperationEditor({ tenant, editor, rights, onClose, onSaved, onUnauthori
       return { type: row ? "product.update" : "product.create", data };
     }
     if (editor.kind === "stock") return { type: "stock.receive", data: { productId: row?.productId ?? row?.id, quantity: Number(draft.quantity), reference: draft.reference } };
-    if (editor.kind === "sale") return { type: "sale.confirm", data: { customerId: draft.customerId, items: items.map((item) => ({ productId: item.productId, quantity: item.quantity, version: products.find((product) => product.id === item.productId)?.version })) } };
+    if (editor.kind === "sale") return { type: "sale.confirm", data: { customerId: draft.customerId, items: items.map((item) => ({ productId: item.productId, quantity: item.quantity, version: products.find((product) => product.id === item.productId)?.version, ...(item.discount === undefined ? {} : { discountCents: saleLineAmounts(products.find((product) => product.id === item.productId)?.salePriceCents ?? 0, item.quantity, item.discount).discountCents }) })) } };
     if (editor.kind === "order") return { type: "order.create", data: { customerId: draft.customerId, technicianId: draft.technicianId, equipment: draft.equipment, issue: draft.issue, due: draft.due, laborCents: amount(draft.labor) ?? 0 } };
     if (editor.kind === "editOrder") return { type: "order.update", data: { id: row?.id, version: row?.version, technicianId: draft.technicianId, diagnosis: draft.diagnosis, due: draft.due, laborCents: amount(draft.labor) ?? 0 } };
     return { type: "order.deliver", data: { id: row?.id, version: row?.version, allowUnsettled: draft.allowUnsettled } };
   }
   async function submit(event: React.FormEvent) {
-    event.preventDefault(); if (busy) return; setBusy(true); setError("");
+    event.preventDefault(); if (busy || (["sale", "order"].includes(editor.kind) && !draft.customerId)) return; setBusy(true); setError("");
     try { const input = submission(), content = JSON.stringify(input); if (attempt.current?.content !== content) attempt.current = { content, id: crypto.randomUUID() };
       await accessRequest(`${endpoint(tenant)}/commands`, { method: "POST", body: { requestId: attempt.current!.id, ...input } }); if (!invalidated()) onSaved();
     } catch (failure) { if (!invalidated()) { if (failure instanceof AccessError && [401, 403].includes(failure.status)) onUnauthorized(failure); else setError(message(failure)); } }
@@ -183,18 +193,26 @@ function OperationEditor({ tenant, editor, rights, onClose, onSaved, onUnauthori
         {row && has("products.archive") && <label><input type="checkbox" checked={draft.active} onChange={(event) => set("active", event.target.checked)} /> Produto ativo</label>}
       </>}
       {editor.kind === "stock" && <><p>{row?.name}</p><Field label="Quantidade"><input type="number" min={1} max={1000000} step={1} required value={draft.quantity} onChange={(event) => set("quantity", event.target.value)} /></Field><Field label="Referência da entrada"><input required maxLength={160} value={draft.reference} onChange={(event) => set("reference", event.target.value)} /></Field><p className={styles.note}>A entrada aumenta o estoque físico. Não registra pagamento.</p></>}
-      {["sale", "order"].includes(editor.kind) && <><Field label="Buscar cliente"><input value={customerSearch} maxLength={100} onChange={(event) => setCustomerSearch(event.target.value)} /></Field><Field label="Cliente"><select aria-label="Cliente" required value={draft.customerId} onChange={(event) => set("customerId", event.target.value)}><option value="">Selecione</option>{customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></Field>{has("customers.create") && <button type="button" className="button button-secondary" onClick={() => setAuxiliary("customer")}>Cadastrar cliente aqui</button>}</>}
-      {editor.kind === "sale" && <><Field label="Buscar produto"><input maxLength={100} value={productSearch} onChange={(event) => setProductSearch(event.target.value)} /></Field>{items.map((item, index) => <div key={item.key} className={op.saleLine}><Field label={`Produto ${index + 1}`}><select aria-label={`Produto ${index + 1}`} required value={item.productId} onChange={(event) => setItems((current) => current.map((line) => line.key === item.key ? { ...line, productId: event.target.value } : line))}><option value="">Selecione</option>{products.map((product) => <option key={product.id} value={product.id}>{product.name} · {product.salePriceCents == null ? "Preço pendente" : money(product.salePriceCents)}</option>)}</select></Field><Field label={`Quantidade ${index + 1}`}><input type="number" required min={1} max={1000000} step={1} value={item.quantity} onChange={(event) => setItems((current) => current.map((line) => line.key === item.key ? { ...line, quantity: Number(event.target.value) } : line))} /></Field><button type="button" aria-label={`Remover produto ${index + 1}`} onClick={() => setItems((current) => current.filter((line) => line.key !== item.key))}>Remover</button></div>)}<button type="button" className="button button-secondary" onClick={() => setItems((current) => [...current, { key: crypto.randomUUID(), productId: "", quantity: 1 }])}>Adicionar produto</button>{has("products.create") && <button type="button" className="button button-secondary" onClick={() => setAuxiliary("product")}>Cadastrar produto aqui</button>}<strong>Total previsto: {money(items.reduce((sum, item) => sum + (products.find((product) => product.id === item.productId)?.salePriceCents ?? 0) * item.quantity, 0))}</strong><p className={styles.note}>A confirmação reserva o conjunto; não recebe dinheiro nem entrega a mercadoria.</p></>}
+      {["sale", "order"].includes(editor.kind) && <CustomerPicker tenant={tenant} value={selectedCustomer} onChange={(customer) => { setSelectedCustomer(customer); set("customerId", customer?.id ?? ""); }} onUnauthorized={onUnauthorized} onCreate={has("customers.create") ? () => setAuxiliary("customer") : undefined} />}
+      {editor.kind === "sale" && <>{items.map((item, index) => <div key={item.key} className={op.saleLine}>
+        <ProductPicker tenant={tenant} index={index + 1} value={products.find((product) => product.id === item.productId) as ProductChoice ?? null} onUnauthorized={onUnauthorized} onChange={(product) => {
+          if (product) setProducts((current) => [...new Map([...current, product].map((entry) => [entry.id, entry])).values()]);
+          setItems((current) => current.map((line) => line.key === item.key ? { ...line, productId: product?.id ?? "", discount: undefined } : line));
+        }} />
+        <Field label={`Quantidade ${index + 1}`}><input type="number" required min={1} max={1000000} step={1} value={item.quantity} onChange={(event) => setItems((current) => current.map((line) => line.key === item.key ? { ...line, quantity: Number(event.target.value) } : line))} /></Field>
+        <button type="button" aria-label={`Remover produto ${index + 1}`} onClick={() => setItems((current) => current.filter((line) => line.key !== item.key))}>Remover</button>
+        {item.productId && <SaleItemPricing index={index + 1} unitPriceCents={products.find((product) => product.id === item.productId)?.salePriceCents ?? null} quantity={item.quantity} discount={item.discount} canDiscount={has("sales.discount")} onDiscount={(discount) => setItems((current) => current.map((line) => line.key === item.key ? { ...line, discount } : line))} />}
+      </div>)}<button type="button" className="button button-secondary" onClick={() => setItems((current) => [...current, { key: crypto.randomUUID(), productId: "", quantity: 1 }])}>Adicionar produto</button>{has("products.create") && <button type="button" className="button button-secondary" onClick={() => setAuxiliary("product")}>Cadastrar produto aqui</button>}{salePricingError ? <p className={styles.note}>{salePricingError}</p> : <SaleTotals grossCents={saleGross} discountCents={saleDiscount} totalCents={saleTotal} />}<p className={styles.note}>A confirmação reserva o conjunto; não recebe dinheiro nem entrega a mercadoria.</p></>}
       {["order", "editOrder"].includes(editor.kind) && <><Field label="Técnico responsável"><select aria-label="Técnico responsável" required value={draft.technicianId} onChange={(event) => set("technicianId", event.target.value)}><option value="">Selecione</option>{technicians.map((technician) => <option key={technician.id} value={technician.id}>{technician.name}</option>)}</select></Field>{has("orders.create") && <button type="button" className="button button-secondary" onClick={() => setAuxiliary("technician")}>Cadastrar técnico aqui</button>}
         {editor.kind === "order" ? <><Field label="Equipamento"><input required maxLength={160} value={draft.equipment} onChange={(event) => set("equipment", event.target.value)} /></Field><Field label="Serviço solicitado"><textarea required maxLength={2000} value={draft.issue} onChange={(event) => set("issue", event.target.value)} /></Field></> : <Field label="Diagnóstico"><textarea maxLength={4000} value={draft.diagnosis} onChange={(event) => set("diagnosis", event.target.value)} /></Field>}
         <Field label="Previsão"><input type="date" required value={draft.due} onChange={(event) => set("due", event.target.value)} /></Field><Field label="Mão de obra"><input inputMode="decimal" required disabled={row?.approved} value={draft.labor} onChange={(event) => set("labor", event.target.value)} /></Field></>}
       {editor.kind === "deliverOrder" && <><p>OS {row?.number} · {row?.customerName} · {row?.equipment}</p><p className={styles.notice}>{row?.finance ? `Recebido: ${money(row.finance.paidCents)}. Em aberto: ${money(row.finance.outstandingCents)}.` : row?.agreementId ? "Condições financeiras registradas. Confira os recebimentos com o responsável financeiro." : "Esta OS ainda não tem condições de pagamento registradas."} Esta ação registra somente a entrega do equipamento.</p><label><input type="checkbox" required checked={draft.allowUnsettled} onChange={(event) => set("allowUnsettled", event.target.checked)} />Confirmo a entrega com a situação financeira informada.</label></>}
-      <div className="form-actions"><button type="button" className="button button-secondary" onClick={onClose}>Cancelar</button><button className="button button-primary" type="submit" disabled={busy || (editor.kind === "sale" && !items.length)}>{busy ? "Confirmando…" : saveLabel}</button></div>
+      <div className="form-actions"><button type="button" className="button button-secondary" onClick={onClose}>Cancelar</button><button className="button button-primary" type="submit" disabled={busy || (["sale", "order"].includes(editor.kind) && !draft.customerId) || (editor.kind === "sale" && (!items.length || items.some((item) => !item.productId) || Boolean(salePricingError)))}>{busy ? "Confirmando…" : saveLabel}</button></div>
     </fieldset></form>
     {auxiliary && <AuxiliaryForm tenant={tenant} kind={auxiliary} onClose={() => setAuxiliary(null)} onUnauthorized={onUnauthorized} onSaved={(entity) => {
-      if (auxiliary === "customer") { setCustomers((current) => [...current, entity]); set("customerId", entity.id); }
+      if (auxiliary === "customer") { set("customerId", entity.id); setSelectedCustomer({ id: entity.id, name: entity.name, phone: entity.phone, email: entity.email, active: entity.active, type: entity.type }); }
       if (auxiliary === "technician") { setTechnicians((current) => [...current, entity]); set("technicianId", entity.id); }
-      if (auxiliary === "product") { setProducts((current) => [...current, entity]); setItems((current) => current.map((line, index) => index === current.length - 1 ? { ...line, productId: entity.id } : line)); }
+      if (auxiliary === "product") { setProducts((current) => [...current, entity]); setItems((current) => { const empty = current.find((line) => !line.productId); return empty ? current.map((line) => line === empty ? { ...line, productId: entity.id, discount: undefined } : line) : [...current, { key: crypto.randomUUID(), productId: entity.id, quantity: 1 }]; }); }
       setAuxiliary(null);
     }} />}
   </Modal>;

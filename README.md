@@ -1,5 +1,15 @@
 # Sistem — gestão da loja
 
+**Revisão local PSEL/OS-CSEL — concluída em 29/10/2026, ainda não publicada:** produto da venda e cliente da nova OS usam pesquisa e escolha no mesmo campo. Resultados antigos não se acumulam; carrinho, quantidades, descontos das outras linhas e dados do atendimento são preservados. Cadastro novo não substitui item já escolhido. [Testes, integração real isolada e limites](docs/14-cadastros-no-contexto.md).
+
+**Revisão local BR — 28/10/2026, ainda não publicada:** gestor configura logotipo e fundo de OS com prévia/intensidade em Configurações. Comprovante conectado imprime a marca da empresa, com imagens privadas no banco e sem gerar efeitos operacionais. [Escopo, evidências e preparo da migração](docs/20-personalizacao-da-empresa.md). O [estudo de eficiência para o usuário](docs/21-eficiencia-no-uso-diario.md) orienta reduzir digitação, espera e retrabalho com conferências necessárias.
+
+**Revisão local CSEL — 28/10/2026, ainda não publicada:** cliente da venda usa um único campo de pesquisa e seleção, com contatos, teclado e cadastro no contexto. Digitar não confirma identidade; trocar texto limpa a seleção e preserva carrinho/descontos. [Escopo e verificação](docs/14-cadastros-no-contexto.md).
+
+**Revisão local DSC — 28/10/2026, ainda não publicada:** venda com vários produtos agora mostra subtotais e permite desconto opcional em reais por linha, preservando preço de catálogo e calculando parcelas sobre o líquido. Direito `sales.discount` por funcionário, detalhe da venda salva e proteção contra repetição. Regras, testes e limites no [registro DSC](docs/10-equipe-de-agentes.md).
+
+Documentação consolidada em 28/10/2026: [regras de negócio](docs/16-regras-de-negocio.md), [requisitos funcionais e não funcionais](docs/17-requisitos-funcionais-e-nao-funcionais.md), [mapa mental](docs/18-mapa-mental.md) e [resumo para apresentar ao cliente](docs/19-resumo-para-clientes.md). Cada recurso distingue operação conectada, demonstração e pendências; não há promessa de integração ainda não entregue.
+
 **Publicado e validado em HTTPS em 28/10/2026:** [Administração do Sistem](https://sistemnf-e.onrender.com/administracao/) permite ao administrador central cadastrar empresas selecionadas; gestores cadastram a equipe em `/acessos/`. Cadastro público bloqueado. Textos e campos responsivos revisados. Commit publicado `2824cc2`, preservados Render Free/Neon Free e os registros existentes. Primeiro administrador configurado explicitamente e uma vaga operacional preparada. Verificados login, permissões de acesso anônimo, formulário em 320/390/768px, oito módulos, sessão compartilhada e logout online. Uso/preparação no [guia administrativo](server/README.md#cadastro-restrito-de-empresas-e-equipe); testes e limites no [registro de publicação](docs/15-auditoria-acessos-e-filtros.md).
 
 Next.js 16.4.2, React 19.3.1, TypeScript e CSS. Interface em português para uma loja de eletrônicos com assistência técnica.

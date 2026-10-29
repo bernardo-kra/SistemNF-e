@@ -245,9 +245,9 @@ test("OP15 entradas extras, custo/quantidade inválidos e origem indevida não g
 test("OP16 banco indisponível não usa demonstração; novos direitos estão no catálogo próprio", async () => {
   await scenario(async (app, cookie) => {
     const options: any = await app.instance.inject({ method: "GET", url: `/api/v1/tenants/${TENANT_A}/access-options`, headers: { cookie } });
-    // FIN-LIVE amplia explicitamente o catálogo; preservar a comparação exata e os direitos anteriores.
+    // FIN-LIVE e DSC ampliam explicitamente o catálogo; preservar comparação exata e direitos anteriores.
     assert.deepEqual(options.json().operationalPermissions.map((item: any) => item.id).sort(),
-      [...opRights, "finance.read", "finance.agreements.create", "finance.receive", "finance.accounts.manage", "finance.cash.manage"].sort());
+      [...opRights, "sales.discount", "finance.read", "finance.agreements.create", "finance.receive", "finance.accounts.manage", "finance.cash.manage"].sort());
     const broken = await fixture.app({ tenantDatabaseUrls: { a: "postgresql://invalid:invalid@127.0.0.1:1/unavailable", b: fixture.config.tenantDatabaseUrls.b } });
     try { assertError(await broken.instance.inject({ method: "GET", url: `${base()}/products`, headers: { cookie } }), 503); }
     finally { await broken.close(); }

@@ -196,4 +196,17 @@ export async function migrateTenant(pool: Pool): Promise<void> {
     END; $body$;
     CREATE TRIGGER tenant_admission_monotonic BEFORE UPDATE OR DELETE ON tenant_admission FOR EACH ROW EXECUTE FUNCTION protect_tenant_admission();
   `, "tenant_004");
+  await migrate(pool, "tenant", `
+    CREATE TABLE company_branding (
+      singleton boolean PRIMARY KEY DEFAULT true CHECK(singleton),version integer NOT NULL CHECK(version>0),
+      logo bytea,logo_width integer,logo_height integer,background bytea,background_width integer,background_height integer,
+      background_opacity integer NOT NULL DEFAULT 10 CHECK(background_opacity BETWEEN 0 AND 20),updated_at timestamptz NOT NULL,updated_by text NOT NULL,
+      CHECK((logo IS NULL AND logo_width IS NULL AND logo_height IS NULL) OR (logo IS NOT NULL AND logo_width IS NOT NULL AND logo_height IS NOT NULL AND octet_length(logo) BETWEEN 1 AND 524288 AND logo_width BETWEEN 1 AND 600 AND logo_height BETWEEN 1 AND 300)),
+      CHECK((background IS NULL AND background_width IS NULL AND background_height IS NULL) OR (background IS NOT NULL AND background_width IS NOT NULL AND background_height IS NOT NULL AND octet_length(background) BETWEEN 1 AND 524288 AND background_width BETWEEN 1 AND 1200 AND background_height BETWEEN 1 AND 1600))
+    );
+    CREATE TABLE company_branding_requests (
+      id uuid PRIMARY KEY,actor_id text NOT NULL,fingerprint text NOT NULL,version integer NOT NULL CHECK(version>=0),at timestamptz NOT NULL DEFAULT clock_timestamp()
+    );
+    CREATE TRIGGER company_branding_requests_immutable BEFORE UPDATE OR DELETE ON company_branding_requests FOR EACH ROW EXECUTE FUNCTION prevent_audit_changes();
+  `, "tenant_005");
 }

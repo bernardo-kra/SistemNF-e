@@ -4,7 +4,7 @@ import { before, after, test } from "node:test";
 import { createFixture, login, authHeaders, createCustomer, TENANT_A, TENANT_B, assertError, type Fixture, type TestApp } from "./helpers.ts";
 import { planInstallments } from "../../shared/finance-planner.mjs";
 
-// QA independente. Cenários escritos pelo contrato FIN-LIVE antes das fontes financeiras.
+// Cenários FIN01–FIN26 definidos pelo QA independente; complementos DSC pelo coordenador antes do código.
 // Cada cenário usa clientes/contas/produtos próprios; sem dados ou contas da demonstração.
 let fixture: Fixture;
 before(async () => { fixture = await createFixture(); });
@@ -403,5 +403,134 @@ test("FIN26 projeção financeira na venda mostra saldo real e é retirada sem f
     const current = await read(cookie); assert.equal(current.status, "confirmed"); assert.deepEqual(current.finance, { agreementId: sale.agreementId, paidCents: 10000, outstandingCents: 20000 });
     const user = await fixture.user("viewer"); await fixture.control.migrationPool.query("UPDATE memberships SET permission_overrides=$1 WHERE user_id=$2 AND tenant_id=$3", [JSON.stringify({ "products.read": true, "stock.read": true, "sales.read": true }), user.id, TENANT_A]);
     const session = await login(app, user), restricted = await read(session.cookie); assert.equal(restricted.totalCents, 30000); assert.equal(Object.hasOwn(restricted, "finance"), false);
+  });
+});
+
+// DSC: requisitos de múltiplos produtos e desconto total em centavos por linha.
+test("DSC01 dois produtos, quantidades e desconto individual geram dívida líquida e baixas corretas", async () => {
+  await scenario(async (app, cookie) => {
+    const one = await fixtureSale(app, cookie, 10000), two = await fixtureSale(app, cookie, 5000);
+    const items = [{ ...one.items[0], quantity: 2, discountCents: 1500 }, two.items[0]];
+    const id = randomUUID(), data = later(one.buyer.id, items);
+    const sale = await command(app, cookie, "sale.checkout", data, id);
+    assert.equal(sale.grossCents, 25000); assert.equal(sale.discountCents, 1500); assert.equal(sale.totalCents, 23500);
+    assert.equal(sale.items[0].unitPriceCents, 10000); assert.equal(sale.items[0].grossCents, 20000); assert.equal(sale.items[0].discountCents, 1500); assert.equal(sale.items[0].totalCents, 18500);
+    assert.equal(sale.items[1].discountCents, 0); assert.equal(sale.items[1].totalCents, 5000);
+    assert.equal((await installments(app, cookie, one.buyer.id))[0].amountCents, 23500);
+    assert.equal((await stock(app, cookie, one.product.id)).physical, 3); assert.equal((await stock(app, cookie, two.product.id)).physical, 4);
+    assert.equal((await command(app, cookie, "sale.checkout", data, id)).id, sale.id);
+    assert.equal((await stock(app, cookie, one.product.id)).physical, 3);
+    const catalog = await app.instance.inject({ method: "GET", url: `${opBase()}/products?code=${one.product.sku}`, headers: { cookie } });
+    assert.equal(catalog.json().items[0].salePriceCents, 10000);
+    const history = await app.instance.inject({ method: "GET", url: `${opBase()}/history?entityType=sale&id=${sale.id}`, headers: { cookie } });
+    assert.equal(history.json().items[0].after.discountCents, 1500);
+  });
+});
+test("DSC02 linhas repetidas somam quantidade e desconto sem descontar outros produtos", async () => {
+  await scenario(async (app, cookie) => {
+    const one = await fixtureSale(app, cookie, 1000), two = await fixtureSale(app, cookie, 500);
+    const sale = await command(app, cookie, "sale.confirm", { customerId: one.buyer.id, items: [{ ...one.items[0], discountCents: 100 }, { ...one.items[0], quantity: 2, discountCents: 50 }, two.items[0]] });
+    assert.equal(sale.items.length, 2); assert.equal(sale.items[0].quantity, 3); assert.equal(sale.items[0].discountCents, 150); assert.equal(sale.items[0].totalCents, 2850); assert.equal(sale.totalCents, 3350);
+    assert.equal((await stock(app, cookie, one.product.id)).reserved, 3);
+  });
+});
+test("DSC03 desconto inválido ou total forjado não deixa reserva nem acordo parcial", async () => {
+  await scenario(async (app, cookie) => {
+    const { buyer, product, items } = await fixtureSale(app, cookie, 1000);
+    for (const discountCents of [-1, 1001, 0.5, '100', null, Number.MAX_SAFE_INTEGER + 1]) {
+      assertError(await request(app, cookie, "sale.checkout", later(buyer.id, [{ ...items[0], discountCents }])), 400);
+    }
+    assertError(await request(app, cookie, "sale.checkout", later(buyer.id, [{ ...items[0], discountCents: 100, unitPriceCents: 1 }])), 400);
+    assert.equal((await stock(app, cookie, product.id)).reserved, 0); assert.equal((await installments(app, cookie, buyer.id)).length, 0);
+  });
+});
+test("DSC04 conceder desconto exige direito atual inclusive no replay e no comando sem financeiro", async () => {
+  await scenario(async (app, cookie) => {
+    const { buyer, items } = await fixtureSale(app, cookie), user = await fixture.user('viewer');
+    const grants = { 'customers.read': true, 'products.read': true, 'stock.read': true, 'sales.read': true, 'sales.create': true, 'finance.read': true, 'finance.agreements.create': true };
+    const grant = async (discount: boolean) => fixture.control.migrationPool.query('UPDATE memberships SET permission_overrides=$1 WHERE user_id=$2 AND tenant_id=$3', [JSON.stringify({ ...grants, ...(discount ? { 'sales.discount': true } : {}) }), user.id, TENANT_A]);
+    await grant(false); const session = await login(app, user);
+    const discounted = [{ ...items[0], discountCents: 100 }], data = later(buyer.id, discounted, { deliver: false }), id = randomUUID();
+    assertError(await request(app, session.cookie, 'sale.checkout', data, id), 403);
+    assertError(await request(app, session.cookie, 'sale.confirm', { customerId: buyer.id, items: discounted }), 403);
+    await grant(true); const sale = await command(app, session.cookie, 'sale.checkout', data, id); assert.equal(sale.totalCents, 9900);
+    await grant(false); assertError(await request(app, session.cookie, 'sale.checkout', data, id), 403);
+  });
+});
+test("DSC05 entrada e parcelas usam o total líquido; snapshot não muda ao editar o catálogo", async () => {
+  await scenario(async (app, cookie) => {
+    const { buyer, product, items } = await fixtureSale(app, cookie, 10001);
+    const sale = await command(app, cookie, 'sale.checkout', later(buyer.id, [{ ...items[0], discountCents: 1000 }], { deliver: false, terms: { downPaymentCents: 2000, installmentCount: 3, firstDue: '2100-01-30' } }));
+    assert.equal(sale.totalCents, 9001); assert.equal((await installments(app, cookie, buyer.id)).reduce((sum, row) => sum + row.amountCents, 0), 9001);
+    await command(app, cookie, 'product.update', { id: product.id, version: product.version, salePriceCents: 20000 });
+    const response = await app.instance.inject({ method: 'GET', url: `${opBase()}/sales?limit=100`, headers: { cookie } });
+    const saved = response.json().items.find((row: any) => row.id === sale.id); assert.equal(saved.items[0].unitPriceCents, 10001); assert.equal(saved.items[0].discountCents, 1000); assert.equal(saved.totalCents, 9001);
+  });
+});
+test("DSC06 item integralmente descontado não transfere desconto para outra linha; carrinho zerado não gera acordo", async () => {
+  await scenario(async (app, cookie) => {
+    const one = await fixtureSale(app, cookie, 1000), two = await fixtureSale(app, cookie, 500);
+    const sale = await command(app, cookie, 'sale.checkout', later(one.buyer.id, [{ ...one.items[0], discountCents: 1000 }, two.items[0]]));
+    assert.equal(sale.items[0].totalCents, 0); assert.equal(sale.totalCents, 500);
+    assertError(await request(app, cookie, 'sale.checkout', later(one.buyer.id, [{ ...one.items[0], discountCents: 1000 }])), 400);
+    assert.equal((await stock(app, cookie, one.product.id)).physical, 4);
+  });
+});
+
+test("OS-REC01 filtro da OS pagina somente sua dívida; recebimento parcial e replay preservam a venda do mesmo cliente", async () => {
+  await scenario(async (app, cookie) => {
+    const { buyer, items } = await fixtureSale(app, cookie, 10000);
+    const sale = await command(app, cookie, "sale.checkout", later(buyer.id, items));
+    const tech = await command(app, cookie, "technician.create", { name: "Técnico financeiro QA" });
+    let order = await command(app, cookie, "order.create", { customerId: buyer.id, technicianId: tech.id, equipment: "Aparelho QA", issue: "Reparo QA", due: "2100-01-01", laborCents: 9000 });
+    for (let i = 0; i < 2; i++) order = await command(app, cookie, "order.advance", { id: order.id, version: order.version });
+    order = await command(app, cookie, "order.update", { id: order.id, version: order.version, approved: true });
+    await command(app, cookie, "agreement.create", { sourceType: "order", sourceId: order.id, sourceVersion: order.version, downPaymentCents: 0, installmentCount: 3, firstDue: "2100-02-01" });
+    const filter = `installments?customerId=${buyer.id}&sourceType=order&sourceId=${order.id}&status=open`;
+    const first = await get(app, cookie, `${filter}&limit=1`), second = await get(app, cookie, `${filter}&limit=1&offset=1`);
+    assert.equal(first.total, 3); assert.equal(first.items.length, 1); assert.equal(second.total, 3); assert.notEqual(first.items[0].id, second.items[0].id);
+    assert.equal(first.items[0].sourceId, order.id); assert.equal(first.items[0].sourceType, "order");
+    assert.equal((await get(app, cookie, `installments?customerId=${buyer.id}&sourceType=order&sourceId=${sale.id}`)).total, 0);
+    const other = await createCustomer(app, cookie); assert.equal((await get(app, cookie, `installments?customerId=${other.id}&sourceType=order&sourceId=${order.id}`)).total, 0);
+    const bank = await account(app, cookie), id = randomUUID(), data = transfer(buyer.id, bank.id, 1000, { sourceType: "order", sourceId: order.id, allocations: [{ installmentId: first.items[0].id, amountCents: 1000 }] });
+    const saleInstallment = (await installments(app, cookie, buyer.id)).find((row) => row.sourceId === sale.id);
+    assertError(await request(app, cookie, "payment.receive", { ...data, allocations: [{ installmentId: saleInstallment.id, amountCents: 1000 }] }), 409);
+    const payment = await command(app, cookie, "payment.receive", data, id); assert.equal((await command(app, cookie, "payment.receive", data, id)).id, payment.id);
+    const all = await installments(app, cookie, buyer.id);
+    assert.equal(all.filter((row) => row.sourceId === sale.id).reduce((sum, row) => sum + row.balanceCents, 0), 10000);
+    assert.equal(all.filter((row) => row.sourceId === order.id).reduce((sum, row) => sum + row.balanceCents, 0), 8000);
+    assert.equal((await payments(app, cookie, buyer.id)).length, 1); assert.equal((await balance(app, cookie, bank.id)), 1000);
+    const current = await app.instance.inject({ method: "GET", url: `${opBase()}/orders?q=${order.number}`, headers: { cookie } });
+    assert.equal(current.json().items.find((row: any) => row.id === order.id).stage, order.stage);
+  });
+});
+
+test("OS-REC03 recebimento automático e explícito respeitam origem no servidor sem quitar dívida anterior", async () => {
+  await scenario(async (app, cookie) => {
+    const { buyer, items } = await fixtureSale(app, cookie, 10000);
+    const older = await command(app, cookie, "sale.checkout", later(buyer.id, items));
+    const target = await command(app, cookie, "sale.checkout", later(buyer.id, items));
+    const bank = await account(app, cookie), id = randomUUID();
+    const data = transfer(buyer.id, bank.id, 500, { sourceType: "sale", sourceId: target.id });
+    const payment = await command(app, cookie, "payment.receive", data, id);
+    assert.equal(payment.receipt.allocations.every((row: any) => row.sourceId === target.id), true);
+    assert.equal(payment.receipt.remainingCents, 19500); assert.equal((await command(app, cookie, "payment.receive", data, id)).id, payment.id);
+    const rows = await installments(app, cookie, buyer.id), other = rows.find((row) => row.sourceId === older.id);
+    assert.equal(other.balanceCents, 10000); assert.equal(rows.find((row) => row.sourceId === target.id).balanceCents, 9500);
+    assertError(await request(app, cookie, "payment.receive", { ...data, allocations: [{ installmentId: other.id, amountCents: 500 }] }), 409);
+    assertError(await request(app, cookie, "payment.receive", { ...data, amountCents: 9501 }), 409);
+    for (const patch of [{ sourceId: undefined }, { sourceType: undefined }, { sourceType: "other" }, { sourceId: "bad" }]) assertError(await request(app, cookie, "payment.receive", { ...data, ...patch }), 400);
+    assert.equal((await payments(app, cookie, buyer.id)).length, 1); assert.equal(await balance(app, cookie, bank.id), 500);
+  });
+});
+
+test("OS-REC02 origem exige par válido, recurso correto e autenticação", async () => {
+  await scenario(async (app, cookie) => {
+    const id = randomUUID();
+    for (const query of [`sourceType=order`, `sourceId=${id}`, `sourceType=unknown&sourceId=${id}`, `sourceType=order&sourceId=bad`]) {
+      assertError(await app.instance.inject({ method: "GET", url: `${finBase()}/installments?${query}`, headers: { cookie } }), 400);
+    }
+    assertError(await app.instance.inject({ method: "GET", url: `${finBase()}/overview?sourceType=order&sourceId=${id}`, headers: { cookie } }), 400);
+    assertError(await app.instance.inject({ method: "GET", url: `${finBase()}/installments?sourceType=order&sourceId=${id}` }), 401);
   });
 });

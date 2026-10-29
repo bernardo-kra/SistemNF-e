@@ -1,3 +1,4 @@
+import { selectSaleProduct } from "./helpers/product-choice";
 import { expect, test, type Locator, type Page, type TestInfo } from "@playwright/test";
 
 // UXR-QA: critérios definidos antes das correções de texto/layout.
@@ -102,7 +103,7 @@ for (const width of [320, 390, 768, 1024]) {
   test(`UXR OS ${width}px: seleção e cadastro contextual preservam campos alcançáveis`, async ({ page }, info) => {
     const mutations = await controlledApi(page); await page.setViewportSize({ width, height: 850 });
     const dialog = await open(page, "/ordens/", "Nova OS");
-    await dialog.getByLabel("Cliente", { exact: true }).selectOption(contact.id); await dialog.getByLabel("Técnico responsável", { exact: true }).selectOption(id("25"));
+    await dialog.getByRole("combobox", { name: "Cliente", exact: true }).fill(contact.name); await dialog.getByRole("listbox", { name: "Resultados de clientes", exact: true }).getByRole("option").filter({ has: page.getByText(contact.name, { exact: true }) }).click(); await dialog.getByLabel("Técnico responsável", { exact: true }).selectOption(id("25"));
     await dialog.getByLabel("Equipamento", { exact: true }).fill("Aparelho do cliente com descrição detalhada " + "M".repeat(80));
     await dialog.getByLabel("Serviço solicitado", { exact: true }).fill("Troca de tela e conferência dos sensores, mantendo os dados do cliente.");
     await fit(page, dialog, info, "os-cadastro"); await reachable(dialog, "Salvar OS");
@@ -118,7 +119,7 @@ for (const width of [320, 390, 768, 1024]) {
   test(`UXR Venda ${width}px: produto longo, parcelas e recebimento cabem no formulário`, async ({ page }, info) => {
     const mutations = await controlledApi(page); await page.setViewportSize({ width, height: 850 });
     const dialog = await open(page, "/vendas/", "Nova venda");
-    await dialog.getByLabel("Cliente", { exact: true }).selectOption(contact.id); await dialog.getByLabel("Produto 1", { exact: true }).selectOption(product.id);
+    await dialog.getByRole("combobox", { name: "Cliente", exact: true }).fill(contact.name); await dialog.getByRole("option", { name: contact.name }).click(); await selectSaleProduct(dialog, product.name, 1);
     await dialog.getByLabel("Condição de pagamento", { exact: true }).selectOption("installments");
     await dialog.getByLabel("Entrada", { exact: true }).fill("5,00"); await dialog.getByLabel("Número de parcelas", { exact: true }).fill("2");
     await dialog.getByRole("checkbox", { name: "Receber entrada agora", exact: true }).check();

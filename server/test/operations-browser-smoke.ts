@@ -82,10 +82,10 @@ try {
   stage = "sale-reservation-delivery";
   await manager.getByRole("link", { name: "Vendas", exact: true }).click();
   await manager.getByRole("button", { name: "Nova venda", exact: true }).click(); modal = manager.getByRole("dialog");
-  await expect(modal.getByLabel("Cliente", { exact: true }).locator("option")).toHaveCount(2);
-  await modal.getByLabel("Cliente", { exact: true }).selectOption(order.customerId);
-  await expect(modal.getByLabel("Produto 1", { exact: true }).locator("option")).toHaveCount(2);
-  await modal.getByLabel("Produto 1", { exact: true }).selectOption(product.id);
+  await modal.getByRole("combobox", { name: "Cliente", exact: true }).fill(order.customerName);
+  await modal.getByRole("option", { name: order.customerName }).click();
+  await modal.getByRole("combobox", { name: "Produto 1", exact: true }).fill(product.name);
+  await modal.getByRole("listbox", { name: "Resultados de produtos 1", exact: true }).getByRole("option").filter({ has: manager.getByText(product.name, { exact: true }) }).click();
   await modal.getByLabel("Quantidade 1", { exact: true }).fill("2");
   await modal.getByLabel("Entregar agora", { exact: true }).uncheck();
   await modal.getByRole("button", { name: "Concluir venda", exact: true }).click(); await expect(modal).toHaveCount(0);
@@ -117,10 +117,10 @@ try {
 
   stage = "history-and-captures";
   await manager.getByRole("link", { name: "Produtos", exact: true }).click();
-  await manager.getByRole("button", { name: /^Histórico de/ }).click();
+  await manager.getByRole("button", { name: `Histórico de ${product.name}`, exact: true }).click();
   await expect(manager.getByRole("dialog").getByText("Pessoa de teste", { exact: true }).first()).toBeVisible();
   await manager.getByRole("dialog").getByRole("button", { name: /Fechar/ }).click();
-  const pictures = new URL("../../docs/evidencias/", import.meta.url); await mkdir(pictures, { recursive: true });
+  const pictures = new URL("../.local/validation/selection-real/", import.meta.url); await mkdir(pictures, { recursive: true });
   await manager.screenshot({ path: fileURLToPath(new URL("operacao-conectada.png", pictures)), fullPage: true });
   await manager.setViewportSize({ width: 390, height: 844 });
   await manager.getByRole("button", { name: "Editar produto", exact: true }).click();

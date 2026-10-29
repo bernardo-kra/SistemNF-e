@@ -13,6 +13,7 @@ import { readFinance } from "./finance.js";
 import { registerFrontend } from "./web-host.js";
 import { operationalPoolOptions } from "./operational-pool.js";
 import { createAdministrationService } from "./administration.js";
+import { brandingAsset, orderReceipt, readBranding, saveBranding } from "./branding.js";
 
 export type BuildOptions = { config: ApiConfig; controlPool: Pool; logger?: FastifyServerOptions["logger"]; frontendRoot?: string };
 
@@ -85,7 +86,7 @@ export async function buildApp(options: BuildOptions): Promise<FastifyInstance> 
     return pool;
   }
 
-  async function authorize(request: FastifyRequest, rawTenantId: unknown, permission: Permission) {
+  async function activeMembership(request: FastifyRequest, rawTenantId: unknown) {
     const user = await authenticatedUser(request);
     const tenantId = requireUuid(rawTenantId);
     let membership: { id: string; name: string; database_key: string; role: string; permission_overrides: unknown } | undefined;
@@ -95,9 +96,13 @@ export async function buildApp(options: BuildOptions): Promise<FastifyInstance> 
       membership = result.rows[0];
     } catch { throw unavailable(); }
     if (!membership) throw forbidden();
-    requirePermission(membership.role, permission, membership.permission_overrides);
     metadata.set(request, { ...metadata.get(request), tenantId: membership.id });
     return { tenantId: membership.id, tenantName: membership.name, actorId: user.id, actorName: user.name, role: membership.role, overrides: membership.permission_overrides, permissions: permissionsForRole(membership.role, membership.permission_overrides), pool: tenantPool(membership.database_key) };
+  }
+  async function authorize(request: FastifyRequest, rawTenantId: unknown, permission: Permission) {
+    const access = await activeMembership(request, rawTenantId);
+    requirePermission(access.role, permission, access.overrides);
+    return access;
   }
 
   const administration = createAdministrationService(controlPool, config, tenantPool, accounts);
@@ -203,6 +208,28 @@ export async function buildApp(options: BuildOptions): Promise<FastifyInstance> 
   });
 
   type TenantParams = { tenantId: string };
+  const brandingBase = "/api/v1/tenants/:tenantId/branding";
+  app.get<{ Params: TenantParams }>(brandingBase, async (request) => {
+    const access = await activeMembership(request, request.params.tenantId);
+    allowedKeys(inputRecord(request.query), []);
+    return { tenantId: access.tenantId, branding: await readBranding(access.pool) };
+  });
+  app.patch<{ Params: TenantParams }>(brandingBase, { bodyLimit: 3 * 1024 * 1024 }, async (request) => {
+    const access = await authorize(request, request.params.tenantId, "team.manage");
+    allowedKeys(inputRecord(request.query), []);
+    return { tenantId: access.tenantId, branding: await saveBranding(access, request.body) };
+  });
+  app.get<{ Params: TenantParams & { kind: string } }>(`${brandingBase}/assets/:kind`, async (request, reply) => {
+    const access = await activeMembership(request, request.params.tenantId);
+    const bytes = await brandingAsset(access.pool, request.params.kind, request.query);
+    return reply.header("content-type", "image/webp").header("x-content-type-options", "nosniff").header("cache-control", "no-store")
+      .header("content-disposition", `inline; filename="${request.params.kind}.webp"`).send(bytes);
+  });
+  app.get<{ Params: TenantParams & { id: string } }>("/api/v1/tenants/:tenantId/orders/:id/receipt", async (request) => {
+    const access = await authorize(request, request.params.tenantId, "orders.read");
+    allowedKeys(inputRecord(request.query), []);
+    return orderReceipt(access, request.params.id);
+  });
   app.get("/api/v1/administration/companies", async (request) => {
     const user = await authenticatedUser(request);
     return administration.list(user.id, request.query);

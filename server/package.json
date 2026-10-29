@@ -11,7 +11,7 @@
     "start": "node --env-file-if-exists=.local/development/api.env --env-file-if-exists=.env dist/index.js",
     "typecheck": "tsc --noEmit",
     "build": "tsc -p tsconfig.build.json",
-    "test": "node --import tsx --test --test-concurrency=1 --test-reporter=./test/redacted-reporter.mjs test/config.test.ts test/backend.test.ts test/bootstrap.test.ts test/infrastructure.test.ts test/setup-local.test.ts test/accounts.test.ts test/operations.test.ts test/finance.test.ts test/web-host.test.ts test/remote-setup.test.ts test/first-owner.test.ts test/neon-target.test.ts test/administration.test.ts",
+    "test": "node --import tsx --test --test-concurrency=1 --test-reporter=./test/redacted-reporter.mjs test/config.test.ts test/backend.test.ts test/bootstrap.test.ts test/infrastructure.test.ts test/setup-local.test.ts test/accounts.test.ts test/operations.test.ts test/finance.test.ts test/sale-discount-input.test.ts test/web-host.test.ts test/remote-setup.test.ts test/first-owner.test.ts test/neon-target.test.ts test/administration.test.ts test/branding.test.ts",
     "setup:neon": "node --env-file-if-exists=../.env.local --env-file-if-exists=../.env --import tsx scripts/setup-neon.ts",
     "setup:neon:owner": "node --env-file-if-exists=../.env.local --env-file-if-exists=../.env --env-file=../.env.neon.local --import tsx scripts/setup-neon-owner.ts",
     "admin": "node --env-file-if-exists=.local/development/api.env --env-file-if-exists=../.env.local --env-file-if-exists=../.env.neon.local --env-file-if-exists=.env.admin.local --import tsx scripts/administration.ts",
@@ -24,7 +24,8 @@
     "@fastify/static": "10.1.8",
     "better-auth": "1.7.10",
     "fastify": "5.12.7",
-    "pg": "8.23.1"
+    "pg": "8.23.1",
+    "sharp": "0.35.5"
   },
   "devDependencies": {
     "@types/node": "22.20.5",

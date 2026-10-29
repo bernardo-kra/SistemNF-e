@@ -7,6 +7,7 @@ import { Avatar, Field } from "@/components/ui";
 import { useWorkspace } from "./workspace-session";
 import { workspaceReturnPath } from "../../shared/workspace-routes.mjs";
 import styles from "./workspace.module.css";
+import { CompanyBrandingProvider, CompanyLogo } from "./company-branding";
 
 export const workspaceModules = [
   { href: "/", label: "Visão geral", permission: "", icon: LayoutDashboard },
@@ -21,6 +22,11 @@ export const workspaceModules = [
 ];
 const pending = [{ href: "/fiscal/", label: "Documentos fiscais" }, { href: "/relatorios/", label: "Relatórios" }, { href: "/parceiros/", label: "Parceiros" }];
 export function WorkspaceShell({ children }: { children: ReactNode }) {
+  const { tenant, phase, epoch } = useWorkspace(), path = usePathname();
+  const brandingTenant = phase === "ready" && path !== "/administracao/" ? tenant : "";
+  return <CompanyBrandingProvider key={`${brandingTenant}:${epoch}`} tenant={brandingTenant}><WorkspaceShellContent>{children}</WorkspaceShellContent></CompanyBrandingProvider>;
+}
+function WorkspaceShellContent({ children }: { children: ReactNode }) {
   const session = useWorkspace(), path = usePathname(), router = useRouter(), [mobile, setMobile] = useState(false);
   const company = session.identity?.tenants.find((entry) => entry.id === session.tenant), rights = company?.permissions ?? [];
   const module = workspaceModules.find((entry) => entry.href === path);
@@ -38,7 +44,7 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
     {mobile && <button className="sidebar-backdrop" aria-label="Fechar navegação" onClick={() => setMobile(false)} />}
     <aside className={`sidebar ${mobile ? "is-open" : ""}`} aria-label="Navegação principal">
       <Link href="/" className="brand"><span className="brand-mark"><Layers3 size={23} /></span><span>sistem<span className="brand-period">.</span></span></Link>
-      {session.identity!.tenants.length > 0 && <div className={styles.company}><Building2 size={20} /><Field label="Empresa"><select aria-label="Empresa" value={session.tenant} onChange={(event) => session.selectCompany(event.target.value)}><option value="">Selecione a empresa</option>{session.identity!.tenants.map((entry) => <option key={entry.id} value={entry.id}>{entry.name}</option>)}</select></Field></div>}
+      {session.identity!.tenants.length > 0 && <div className={styles.company}><CompanyLogo companyName={company?.name ?? "Empresa"} /><Field label="Empresa"><select aria-label="Empresa" value={session.tenant} onChange={(event) => session.selectCompany(event.target.value)}><option value="">Selecione a empresa</option>{session.identity!.tenants.map((entry) => <option key={entry.id} value={entry.id}>{entry.name}</option>)}</select></Field></div>}
       <nav aria-label="Navegação principal"><div className="nav-group"><span className="nav-group-label">ÁREA DE TRABALHO</span>{workspaceModules.filter((entry) => !entry.permission || rights.includes(entry.permission)).map((entry) => <Link href={entry.href} key={entry.href} className={`nav-item ${path === entry.href ? "active" : ""}`} aria-current={path === entry.href ? "page" : undefined}><entry.icon size={18} /><span>{entry.label}</span></Link>)}</div>
         <div className="nav-group"><span className="nav-group-label">EM PREPARAÇÃO</span>{pending.map((entry) => <Link key={entry.href} href={entry.href} className={`nav-item ${path.startsWith(entry.href) ? "active" : ""}`}><FileText size={18} /><span>{entry.label}</span></Link>)}</div>
       </nav>

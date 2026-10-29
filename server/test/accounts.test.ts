@@ -12,8 +12,8 @@ const memberKeys = ["active", "createdAt", "email", "id", "name", "overrides", "
 const customerPermissions = ["customers.read", "customers.create", "customers.update", "customers.archive"];
 // FIN-LIVE grants the owner five new rights; existing employee defaults stay unchanged.
 const financePermissions = ["finance.read", "finance.agreements.create", "finance.receive", "finance.accounts.manage", "finance.cash.manage"];
-// OP adds owner rights; employee defaults and the existing customer catalog remain unchanged.
-const operationalPermissions = ["products.read", "products.create", "products.update", "products.archive", "products.cost.read", "stock.read", "stock.receive", "sales.read", "sales.create", "sales.deliver", "orders.read", "orders.create", "orders.update", "orders.advance", "orders.deliver", "purchases.read", "purchases.import", "purchases.receive", "audit.read"];
+// OP/DSC add owner rights; employees require explicit grants, including sales.discount.
+const operationalPermissions = ["products.read", "products.create", "products.update", "products.archive", "products.cost.read", "stock.read", "stock.receive", "sales.read", "sales.create", "sales.deliver", "sales.discount", "orders.read", "orders.create", "orders.update", "orders.advance", "orders.deliver", "purchases.read", "purchases.import", "purchases.receive", "audit.read"];
 const base = (tenant = TENANT_A) => `/api/v1/tenants/${tenant}`;
 const members = (tenant = TENANT_A) => `${base(tenant)}/members`;
 const auditPath = (tenant = TENANT_A) => `${base(tenant)}/access-audit`;

@@ -104,7 +104,7 @@ test("OP-UI06 cadastrar cliente no contexto da OS preserva equipamento e selecio
   await child.getByLabel("Nome", { exact: true }).fill(customer.name);
   await child.getByRole("button", { name: "Salvar cadastro", exact: true }).click();
   await expect(child).toHaveCount(0);
-  await expect(main.getByLabel("Cliente", { exact: true })).toHaveValue(customer.id);
+  await expect(main.getByLabel("Cliente", { exact: true })).toHaveValue(customer.name);
   await expect(main.getByLabel("Equipamento", { exact: true })).toHaveValue("iPhone preenchido");
 });
 

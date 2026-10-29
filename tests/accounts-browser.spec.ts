@@ -122,7 +122,8 @@ test("ACC-UI08 resposta de equipe pendente não repovoa a tela depois de acesso 
     await route.fulfill({ status, headers, json: body }).catch(() => {});
   });
   await page.goto("/acessos/");
-  await expect(page.getByRole("alert")).toBeVisible();
+  // Next também anuncia rotas com role=alert; exigir o erro real da área de trabalho.
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("Você não tem permissão");
   releaseMembers();
   // Aceita aborto ou término da requisição; aguarda o corpo e duas oportunidades de renderização.
   await settled;
