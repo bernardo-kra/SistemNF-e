@@ -1,6 +1,8 @@
 # Regras de negócio do Sistem
 
-Referência: **28/10/2026**. Público: produto, desenvolvimento, QA e responsáveis pela loja. Este documento consolida decisões já registradas; não altera o comportamento da aplicação. Não contém registros de nenhuma empresa.
+Publicação desta revisão conferida em29/10: [evidências e limites](15-auditoria-acessos-e-filtros.md). Registros locais de execução anteriores mantêm seu contexto histórico.
+
+Referência: **29/10/2026**. Público: produto, desenvolvimento, QA e responsáveis pela loja. Este documento consolida decisões já registradas; não altera o comportamento da aplicação. Não contém registros de nenhuma empresa.
 
 Leia também os [requisitos e critérios de aceite](17-requisitos-funcionais-e-nao-funcionais.md), o [mapa mental](18-mapa-mental.md) e o [resumo para o cliente](19-resumo-para-clientes.md).
 
@@ -48,11 +50,11 @@ Prioridades futuras deste pacote são propostas de organização. Não autorizam
 
 | ID | Regra | Estado |
 | --- | --- | --- |
-| RN-018 | A venda escolhe um cliente e confirma vários produtos no mesmo carrinho, com quantidade, preço original, desconto opcional total por linha e subtotal líquido. Itens repetidos somam quantidades e descontos; não transferir abatimento entre produtos. Quantidades, preços e totais são revalidados no servidor. Desconto exige direito próprio e não altera o catálogo. Falha em qualquer efeito transacional recusa o conjunto. | C; desconto implementado localmente nesta revisão, ainda não publicado |
+| RN-018 | A venda escolhe um cliente e confirma vários produtos no mesmo carrinho, com quantidade, preço original, desconto opcional total por linha e subtotal líquido. Itens repetidos somam quantidades e descontos; não transferir abatimento entre produtos. Quantidades, preços e totais são revalidados no servidor. Desconto exige direito próprio e não altera o catálogo. Falha em qualquer efeito transacional recusa o conjunto. | C; desconto publicado em29/10/2026 |
 | RN-019 | Fechamento pode coordenar venda, entrega, acordo e entrada efetivamente recebida em uma confirmação, conforme permissões e resumo exibido. Reservar, entregar, receber e emitir documento têm estados próprios. | C no checkout atual; fiscal: P |
 | RN-020 | A OS registra cliente, equipamento, problema, responsável e prazo. Aprovação precede execução; testes precedem a condição pronta para retirada. Alteração de valor já aprovado ou com acordo não pode reescrever silenciosamente o contratado. | C; orçamento versionado e evidência completa de aceite: P |
 | RN-021 | Entrega de equipamento não comprova pagamento. Atualmente a OS exige aceite explícito de entrega sem conferência financeira integrada, além dos direitos, aprovação e testes. Uma política automática de entrega por saldo/exceção ainda precisa ser implementada. | C para bloqueios/aceite atual; integração da decisão: P |
-| RN-022 | Peças aplicadas em reparos devem gerar consumo uma única vez, ligado à OS; equipamento do cliente não é estoque para venda. Imprimir ou reimprimir não cria outra OS. Leitura de código deve localizar a mesma OS quando integrada. Senha de desbloqueio não possui campo dedicado no comprovante; textos livres do atendimento não devem guardar segredos. | Peças/custódia ampliada: P; impressão básica com logo/fundo: C local, não publicada; leitor: D, integração conectada P |
+| RN-022 | Peças aplicadas em reparos devem gerar consumo uma única vez, ligado à OS; equipamento do cliente não é estoque para venda. Imprimir ou reimprimir não cria outra OS. Leitura de código deve localizar a mesma OS quando integrada. Senha de desbloqueio não possui campo dedicado no comprovante; textos livres do atendimento não devem guardar segredos. | Peças/custódia ampliada: P; impressão básica com logo/fundo: C, publicada em29/10; leitor: D, integração conectada P |
 
 ## Financeiro e crédito
 

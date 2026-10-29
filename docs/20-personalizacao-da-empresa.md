@@ -1,5 +1,7 @@
 # Personalização da loja e comprovante conectado de OS
 
+**Atualização em29/10/2026:** publicado em HTTPS com o código `9c108b8`; migração aplicada em main/slot_01 e configurações/API privadas conferidas online, sem enviar imagens fictícias à empresa. [Publicação e limites](15-auditoria-acessos-e-filtros.md). As evidências abaixo mantêm a conclusão local anterior à publicação.
+
 ## Recorte e critérios prévios — 28/10/2026
 
 Pedido: logotipo por loja e imagem de fundo da ordem de serviço. Interpretação aplicada: imagem como marca-d'água no comprovante, com intensidade ajustável e prévia. O produto Sistem, login, cores gerais e permissões existentes permanecem. Não há editor de HTML, CSS arbitrário ou templates fornecidos por terceiros. A impressão conectada mínima entra como dependência para usar as imagens na OS; leitor/fluxo de retirada completo continua separado.

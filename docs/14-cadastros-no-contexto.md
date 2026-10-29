@@ -1,5 +1,7 @@
 # Cadastros sem interromper o atendimento
 
+**Publicado em29/10/2026:** seletores únicos de cliente/produto e recebimento contextual da OS online com o código `9c108b8`; formulários/pesquisa conferidos em HTTPS sem escrita de negócio. [Publicação e limites](15-auditoria-acessos-e-filtros.md). Os registros locais abaixo preservam o histórico da implementação.
+
 ## PSEL/OS-CSEL — seleção no próprio campo — 28–29/10/2026
 
 **Concluído localmente; não publicado. Aceite definido antes das fontes.** Continuidade do estudo de eficiência: corrigir produto nos dois editores de venda conectada e reutilizar o seletor único de cliente na criação de OS. Atendente já informou carrinho, quantidades/descontos ou equipamento/serviço/técnico; buscar outra opção ou cadastrar no contexto não pode apagar esses dados. Recebimento na própria OS exige recorte financeiro posterior, sem inferir pagamento nesta entrega.

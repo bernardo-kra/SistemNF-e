@@ -48,8 +48,8 @@ Ainda não há linha de base de produtividade humana nem promessa de economia de
 
 ## Exemplos e prioridades atuais
 
-1. **Venda:** campos únicos de cliente e produto implementados localmente, ainda não publicados. Produto separa o cache dos itens escolhidos dos resultados atuais; pesquisa, desconto e cadastro contextual preservam as outras linhas. [Execução PSEL](14-cadastros-no-contexto.md).
-2. **OS:** seleção única de cliente e recebimento contextual de parcelas da própria ordem implementados localmente. Receber requer acordo existente, confirmação do meio e permissão; não entrega equipamento nem quita outras dívidas. Próximos recortes: distinguir orçamento indefinido de serviço gratuito e aplicar política de entrega. Não eliminar aprovação/testes para encurtar o fluxo.
+1. **Venda:** campos únicos de cliente e produto publicados em29/10/2026. Produto separa o cache dos itens escolhidos dos resultados atuais; pesquisa, desconto e cadastro contextual preservam as outras linhas. [Execução PSEL](14-cadastros-no-contexto.md).
+2. **OS:** seleção única de cliente e recebimento contextual de parcelas da própria ordem publicados em29/10/2026. Receber requer acordo existente, confirmação do meio e permissão; não entrega equipamento nem quita outras dívidas. Próximos recortes: distinguir orçamento indefinido de serviço gratuito e aplicar política de entrega. Não eliminar aprovação/testes para encurtar o fluxo.
 3. **Compra:** importar o conjunto, decidir somente ambiguidades e confirmar quantidades físicas sem redigitar o XML. Separação de efeitos não exige uma tela por módulo.
 4. **Pagamento:** conservar conta compatível ao mudar Pix/transferência; valor, conta e conferência continuam explícitos. Não confirmar crédito bancário por inferência.
 5. **Personalização:** logo/fundo pré-visualizados em memória, um salvamento do conjunto, erro recuperável e edição encerrada também quando o servidor confirma uma operação sem mudança de versão. Não baixar fundo nas telas que só usam logo.

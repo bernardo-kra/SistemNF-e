@@ -1,5 +1,7 @@
 # Primeiro recorte financeiro
 
+**OS-REC publicado em29/10/2026:** recebimento dentro da própria OS disponível no código `9c108b8`. Consulta por origem conferida em HTTPS, sem registrar pagamentos na empresa real. Integração financeira completa verificada com fixtures isoladas. [Publicação e limites](15-auditoria-acessos-e-filtros.md). Os estados de preparação abaixo são históricos.
+
 ## OS-REC — receber dentro da OS — 29/10/2026
 
 **Recorte e aceite antes do código:** atendente com `orders.read`, `finance.read` e `finance.receive` abre Receber OS na ordem que já possui acordo e saldo em aberto. Reutilizar cliente e origem; carregar somente parcelas abertas dessa ordem e sugerir o saldo atual, sem nova busca de pessoa ou navegação. Sem acordo, continua Combinar pagamento; nenhuma cobrança nasce implicitamente ao clicar Receber. Sem saldo/direito, não oferecer ação indevida.

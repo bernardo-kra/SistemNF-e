@@ -1,6 +1,6 @@
 # Sistem — sua loja e assistência no mesmo atendimento
 
-Apresentação da versão de testes em **28/10/2026**.
+Apresentação da versão de testes publicada em **29/10/2026**: [abrir Sistem](https://sistemnf-e.onrender.com/).
 
 O Sistem reúne o atendimento da loja de eletrônicos e da assistência técnica: clientes, produtos, compras, estoque, vendas, ordens de serviço e recebimentos. A proposta é aproveitar o que já foi informado e reduzir a necessidade de trocar de tela ou lançar a mesma informação duas vezes.
 
@@ -27,15 +27,17 @@ Cadastrar um consumidor em **Clientes**, ou um técnico na OS, não cria conta d
 
 **O fornecedor usa outro nome para o mesmo produto.** O sistema reaproveita vínculos já conferidos e apresenta dúvidas reais. Variações incompatíveis não devem ser unidas só porque os nomes são parecidos. Receber a compra atualiza o estoque; apenas ler a nota não confirma que a mercadoria chegou.
 
+## Melhorias publicadas em 29/10
+
+**Desconto opcional em reais por item**, com preço original, subtotal e resumo da venda. O desconto vale para o total daquela linha: duas unidades de R$ 100 com R$ 15 de desconto ficam em R$ 185. O parcelamento usa o valor final; o preço do catálogo permanece igual. Funcionários precisam da permissão concedida pelo gestor.
+
+O cliente da venda e da nova OS é escolhido em **um único campo**: você digita nome, telefone ou e-mail e toca no resultado, sem outra lista de seleção. Cada produto da venda segue o mesmo padrão, com nome, código, preço e saldo disponível quando informado. Cadastrar durante o atendimento mantém os dados preenchidos; um produto novo não substitui outro já escolhido.
+
+Na OS com condições de pagamento registradas e saldo em aberto, **Receber OS** abre o recebimento naquele atendimento, sem procurar o cliente novamente no Financeiro. O saldo atual é sugerido e o pagamento pode ser parcial. Somente parcelas daquela ordem são quitadas; receber não entrega o equipamento. Conferência do meio de pagamento e permissões são preservadas.
+
+**Identidade da loja:** o gestor pode enviar o logotipo e uma imagem de fundo da OS em Configurações → Personalização da loja, ajustar a intensidade e conferir a prévia antes de salvar. O comprovante conectado usa a marca da própria empresa; imagens e ajustes ficam compartilhados no banco da loja.
+
 ## O que ainda está em desenvolvimento
-
-**Melhoria preparada nesta revisão, ainda não publicada:** desconto opcional em reais por item, com preço original, subtotal e resumo da venda. O desconto vale para o total daquela linha: duas unidades de R$ 100 com R$ 15 de desconto ficam em R$ 185. O parcelamento usa o valor final; o preço do catálogo permanece igual. Funcionários precisam da permissão concedida pelo gestor.
-
-O cliente da venda e da nova OS também passa a ser escolhido em **um único campo**: você digita nome, telefone ou e-mail e toca no resultado, sem outra lista de seleção. Cada produto da venda segue o mesmo padrão, com nome, código, preço e saldo disponível quando informado. Cadastrar durante o atendimento mantém os dados preenchidos; um produto novo não substitui outro já escolhido. Essas simplificações estão nesta revisão local, ainda não publicadas.
-
-Na OS com condições de pagamento registradas e saldo em aberto, **Receber OS** abre o recebimento naquele atendimento, sem procurar o cliente novamente no Financeiro. O saldo atual é sugerido e o pagamento pode ser parcial. Somente parcelas daquela ordem são quitadas; receber não entrega o equipamento. Recurso preparado nesta revisão local, com conferência do meio de pagamento e permissões preservadas.
-
-**Identidade da loja:** o gestor poderá enviar o logotipo e uma imagem de fundo da OS em Configurações → Personalização da loja, ajustar a intensidade e conferir a prévia antes de salvar. O comprovante conectado já foi preparado nesta revisão local para usar a marca da própria empresa; imagens e ajustes ficam compartilhados no banco da loja. Ainda não publicado.
 
 A consulta externa de crédito e o limite automático por cliente ainda não estão disponíveis. O sistema já acompanha dívidas e recebimentos, mas isso não representa aprovação automática de crédito.
 

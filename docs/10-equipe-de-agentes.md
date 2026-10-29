@@ -1,5 +1,9 @@
 # Equipe de agentes do Sistem
 
+## Publicação concluída — 29/10/2026
+
+**Status: publicado e conferido em HTTPS.** Usuário autorizou commit/push e atualização do serviço existente. Código funcional `9c108b8` online, Render Free/Neon preservados; tenant_005 aplicado em todos os bancos operacionais configurados após conferência QA. 355 testes web e seis checks, financeiro35/35, tipos/build aprovados e revisão estática independente OS-REC sem bloqueadores. Validação pública confirmou sessão, novos seletores, personalização/mobile e consulta por origem, sem escrita de negócio e com dados preservados. Limites, alternativa ao CLI bloqueado e evidências no [registro da publicação](15-auditoria-acessos-e-filtros.md). Os estados locais abaixo são checkpoints anteriores.
+
 ## OS-REC e preparação da publicação — 29/10/2026
 
 **Status: implementação e validação concluídas; publicação autorizada em andamento.** Coordenador implementou recebimento contextual da OS após testes prévios de consulta, origem no comando e UI. Revisor independente `revisao_descontos` aprovou os contratos/fontes por leitura, sem bloqueadores, sem executar banco ou navegador. Financeiro completo35/35 e UI específica6/6 aprovados; complemento de resposta parcial entrou na regressão geral **355/355 Playwright e seis checks Node**, exit0. Tipos web/servidor aprovados. Teste real isolado de Chrome/API/PostgreSQL confirmou recebimento parcial restrito à OS, outra dívida preservada, estoque/etapa inalterados, recibo e permissões. Primeira espera após login falhou; repetição com os mesmos critérios concluiu. [Execução e limites OS-REC](11-financeiro-primeiro-recorte.md).
