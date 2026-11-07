@@ -1,6 +1,6 @@
 # Auditoria operacional, filtros e contas de funcionários
 
-## Publicação de relatórios e preparação fiscal — 07/11/2026 (em preparação)
+## Publicação de relatórios e preparação fiscal — 07/11/2026 (parcial: commit enviado, implantação pendente)
 
 Usuário autorizou commit/publicação em 06/11 e retomou explicitamente em 07/11. Critérios antes das ações: incluir entregas locais revisadas de fiscal/relatórios e documentação, conferir Git/segredos, preservar audiência/serviço/plano existentes, testar migrações incrementais 007–010 nos bancos QA existentes antes dos operacionais configurados, comparar registros anteriores por hashes somente em memória e validar runtime. Não cadastrar dados fiscais/certificados fictícios em empresa real nem ativar emissão oficial. Cadastro A1 exige chave protegida do ambiente, ainda pendente; publicação do código não equivale à ativação.
 
@@ -15,6 +15,10 @@ A credencial privada salva do Render retornou401 na tentativa anterior e no iní
 Ensaio compilado final aprovado após atualizar a biblioteca: Chrome real → interface estática/API → Better Auth/PostgreSQL genérico isolado, com consulta/exportação de recebimentos e parcelas, saldos/CSV conferidos, sem mutação de auditoria e `cleanup=true`. Registro privado `release-20261107-browser.log`; nenhuma transação de teste na empresa real. Commit terá código/docs/fontes públicos de schema e fixtures genéricas; arquivos privados e cópias de pesquisa permanecem ignorados.
 
 Conferência do índice comparou os82 arquivos com16 valores privados conhecidos, sem correspondências; hashes dos quatro XSDs oficiais confirmados também nos blobs que serão commitados. O primeiro `diff --cached --check` marcou CRLF/espaços originais dos XSDs externos. Exceção de whitespace limitada a esses quatro recursos em `.gitattributes`, pois a regra fiscal exige preservar os bytes oficiais; arquivos da aplicação seguem a conferência normal. Nenhum schema foi reformatado para ocultar a diferença.
+
+**Resultado da retomada:** commit funcional `4ed7fe15a34ce8e9713642127ca78eef7725e3d3` criado e enviado à `main`; SHA remoto conferido. Árvore de trabalho limpa após o envio. Migrações e validações locais acima concluídas. A publicação online permanece **pendente**: 16 consultas ao novo endpoint de relatórios retornaram404, em vez do401 esperado para acesso anônimo à nova versão. O site existente continuou disponível, sem comprovação de atualização. A API do Render rejeita a credencial salva com401; a retomada do controle visual informou `The browser access host is unavailable` e pipe nativo indisponível. Nenhuma configuração de segurança foi contornada. O ensaio autenticado dos novos relatórios online não foi executado, pois depende da nova implantação.
+
+**Próxima ação concreta:** no [serviço Render existente](https://dashboard.render.com/web/srv-dbgacg59fdbs73d89sd0), executar **Manual Deploy → Deploy latest commit**, mantendo serviço/plano/configuração atuais, e conferir que a implantação inclui `4ed7fe1`. Após ficar `live`, executar o ensaio HTTPS de sessão, relatórios/CSV, responsividade e preparação fiscal. A chave protegida A1 e a emissão oficial continuam pendentes; não foram ativadas por este commit. Este registro documental usa `[skip render]` para não iniciar outra implantação apenas por atualização de status.
 
 ## Publicação de eficiência, descontos e personalização — 29/10/2026 (concluída)
 
