@@ -1,0 +1,4 @@
+# Official schema bytes are hashed; do not normalize their line endings on checkout.
+server/resources/nfse/prodrest-20261020/* -text
+# Vendored XSDs retain official CRLF/trailing spaces; their exact bytes are hash-verified.
+server/resources/nfse/prodrest-20261020/*.xsd -whitespace

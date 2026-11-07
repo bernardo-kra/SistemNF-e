@@ -16,7 +16,7 @@ Os perfis nao autorizam implementar todo o backlog, iniciar outros agentes ou pu
 
 ## Execucao e evidencias
 
-- Preserve o produto Sistem e a stack Next.js/React/TypeScript/CSS. Backend Node.js, identidade real e banco operacional por empresa continuam planejados; nao substitua o projeto com base em modelos externos.
+- Preserve o produto Sistem e a stack Next.js/React/TypeScript/CSS. Backend Node.js, identidade real e banco operacional por empresa estao implementados no recorte descrito no README e em server/README.md; confira os limites atuais e nao substitua o projeto com base em modelos externos.
 - Use o protocolo e os modelos de delegacao/entrega de `docs/10-equipe-de-agentes.md`. Defina objetivo, criterios, dependencias e arquivos permitidos antes de delegar; tarefas pequenas dispensam toda a equipe e documentacao formal extensa.
 - Testes antes do codigo: defina cenarios, entradas e resultados esperados pelos requisitos; escreva e execute os testes automatizados pertinentes antes de alterar o comportamento. Confirme a falha esperada para funcionalidade ausente/bug, implemente e execute novamente. Nao copie expectativas da implementacao nem enfraqueca testes para obter sucesso; alteracoes legitimas de requisito ou correcao de erro no teste precisam de justificativa registrada. Ajustes documentais/visuais sem automacao util exigem verificacao definida antes da edicao. Declare impedimentos de execucao, sem inventar falha ou aprovacao.
 - O coordenador resolve escolhas tecnicas dentro do escopo, acumula arquitetura/integracao e exige revisao independente quando o risco justificar. Nao crie agentes adicionais se os existentes forem suficientes.

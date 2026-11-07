@@ -1,3 +1,5 @@
+import { isAbsolute } from "node:path";
+
 export type ApiConfig = {
   nodeEnv: "development" | "test" | "production";
   host: string;
@@ -7,6 +9,7 @@ export type ApiConfig = {
   authSecret: string;
   controlDatabaseUrl: string;
   tenantDatabaseUrls: Record<string, string>;
+  a1KeyringFile?: string;
 };
 
 export function readConfig(env: NodeJS.ProcessEnv): ApiConfig {
@@ -56,6 +59,9 @@ export function readConfig(env: NodeJS.ProcessEnv): ApiConfig {
     if (!/^[a-z][a-z0-9_]{0,31}$/.test(key)) throw new Error("Chave interna de banco inválida.");
     tenantDatabaseUrls[key] = databaseUrl(value);
   }
+  const a1KeyringFile = env.NFS_E_A1_KEYRING_FILE;
+  if (a1KeyringFile !== undefined && (!a1KeyringFile || !isAbsolute(a1KeyringFile))) throw new Error("Caminho protegido do A1 inválido.");
   return { nodeEnv: nodeEnv as ApiConfig["nodeEnv"], host, port, baseUrl: origin("API_BASE_URL"),
-    frontendOrigin: origin("FRONTEND_ORIGIN"), authSecret, controlDatabaseUrl, tenantDatabaseUrls };
+    frontendOrigin: origin("FRONTEND_ORIGIN"), authSecret, controlDatabaseUrl, tenantDatabaseUrls,
+    ...(a1KeyringFile === undefined ? {} : { a1KeyringFile }) };
 }

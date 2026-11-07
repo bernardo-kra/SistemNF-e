@@ -33,7 +33,7 @@ export async function accessRequest<T>(path: string, options: { method?: "GET" |
   }
   if (!response.ok) {
     let code = "";
-    try { const body = await response.json(); if (body?.error?.code === "LAST_OWNER") code = "LAST_OWNER"; } catch { /* Only controlled public error codes are displayed. */ }
+    try { const body = await response.json(); if (["LAST_OWNER", "VERSION_CONFLICT", "A1_PROFILE_CONFLICT"].includes(body?.error?.code)) code = body.error.code; } catch { /* Only controlled public error codes are displayed. */ }
     throw new AccessError(response.status, code);
   }
   try { return await response.json() as T; } catch { throw new AccessError(503); }

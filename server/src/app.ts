@@ -10,10 +10,15 @@ import { permissionsForRole, requirePermission, type Permission } from "./permis
 import { createAccountsService, type AccountContext } from "./accounts.js";
 import { executeOperation, listOperations, operationHistory, purchasePlan, commandPermissions, resourcePermission } from "./operations.js";
 import { readFinance } from "./finance.js";
+import { readReceiptReport } from "./receipt-reports.js";
+import { readInstallmentReport } from "./installment-reports.js";
 import { registerFrontend } from "./web-host.js";
 import { operationalPoolOptions } from "./operational-pool.js";
 import { createAdministrationService } from "./administration.js";
 import { brandingAsset, orderReceipt, readBranding, saveBranding } from "./branding.js";
+import { findFiscalOrderDraft, prepareFiscalOrder, readFiscalRecord, saveFiscalRecord } from "./fiscal-profile.js";
+import { getDpsRequest, readDpsHistory } from "./nfse-dps-journal.js";
+import { registerA1CertificateRoutes } from "./nfse-a1-routes.js";
 
 export type BuildOptions = { config: ApiConfig; controlPool: Pool; logger?: FastifyServerOptions["logger"]; frontendRoot?: string };
 
@@ -208,6 +213,44 @@ export async function buildApp(options: BuildOptions): Promise<FastifyInstance> 
   });
 
   type TenantParams = { tenantId: string };
+  const fiscalBase = "/api/v1/tenants/:tenantId/fiscal";
+  app.get<{ Params: TenantParams }>(`${fiscalBase}/profile`, async request => {
+    const access=await authorize(request,request.params.tenantId,"fiscal.read");allowedKeys(inputRecord(request.query),[]);
+    return {tenantId:access.tenantId,profile:await readFiscalRecord(access,"profile")};
+  });
+  app.patch<{ Params: TenantParams }>(`${fiscalBase}/profile`, async request => {
+    const access=await authorize(request,request.params.tenantId,"fiscal.configure");allowedKeys(inputRecord(request.query),[]);
+    return {tenantId:access.tenantId,profile:await saveFiscalRecord(access,"profile",request.body)};
+  });
+  app.get<{ Params: TenantParams & { id:string } }>(`${fiscalBase}/customers/:id`, async request => {
+    const access=await authorize(request,request.params.tenantId,"fiscal.read");allowedKeys(inputRecord(request.query),[]);
+    return {tenantId:access.tenantId,customerFiscal:await readFiscalRecord(access,"customer",request.params.id)};
+  });
+  app.patch<{ Params: TenantParams & { id:string } }>(`${fiscalBase}/customers/:id`, async request => {
+    const access=await authorize(request,request.params.tenantId,"fiscal.configure");allowedKeys(inputRecord(request.query),[]);
+    return {tenantId:access.tenantId,customerFiscal:await saveFiscalRecord(access,"customer",request.body,request.params.id)};
+  });
+  app.post<{ Params: TenantParams & { id:string } }>(`${fiscalBase}/orders/:id/prepare`, async request => {
+    const access=await authorize(request,request.params.tenantId,"fiscal.prepare");allowedKeys(inputRecord(request.query),[]);
+    return {tenantId:access.tenantId,draft:await prepareFiscalOrder(access,request.params.id,request.body)};
+  });
+  app.get<{ Params: TenantParams & { id:string } }>(`${fiscalBase}/orders/:id/draft`, async request => {
+    const access=await authorize(request,request.params.tenantId,"fiscal.read");allowedKeys(inputRecord(request.query),[]);
+    return {tenantId:access.tenantId,draft:await findFiscalOrderDraft(access,request.params.id)};
+  });
+  app.get<{ Params: TenantParams & { id:string } }>(`${fiscalBase}/drafts/:id`, async request => {
+    const access=await authorize(request,request.params.tenantId,"fiscal.read");allowedKeys(inputRecord(request.query),[]);
+    const {xml:_,...draft}=await getDpsRequest(access,request.params.id);return {tenantId:access.tenantId,draft};
+  });
+  app.get<{ Params: TenantParams & { id:string } }>(`${fiscalBase}/drafts/:id/xml`, async (request,reply) => {
+    const access=await authorize(request,request.params.tenantId,"fiscal.read");allowedKeys(inputRecord(request.query),[]);
+    const draft=await getDpsRequest(access,request.params.id);
+    return reply.header("content-type","application/xml; charset=utf-8").header("content-disposition",'attachment; filename="dps-rascunho.xml"').header("x-content-type-options","nosniff").send(draft.xml);
+  });
+  app.get<{ Params: TenantParams & { id:string } }>(`${fiscalBase}/drafts/:id/history`, async request => {
+    const access=await authorize(request,request.params.tenantId,"fiscal.read");allowedKeys(inputRecord(request.query),[]);
+    return {tenantId:access.tenantId,...await readDpsHistory(access,request.params.id)};
+  });
   const brandingBase = "/api/v1/tenants/:tenantId/branding";
   app.get<{ Params: TenantParams }>(brandingBase, async (request) => {
     const access = await activeMembership(request, request.params.tenantId);
@@ -247,6 +290,22 @@ export async function buildApp(options: BuildOptions): Promise<FastifyInstance> 
   app.get<{ Params: TenantParams & { id: string } }>("/api/v1/tenants/:tenantId/finance/payments/:id", async (request) => {
     const access = await authorize(request, request.params.tenantId, "finance.read");
     return { tenantId: access.tenantId, ...await readFinance(access, `payments/${request.params.id}`, request.query) };
+  });
+  app.get<{ Params: TenantParams }>("/api/v1/tenants/:tenantId/reports/receipts", async request => {
+    const access = await authorize(request, request.params.tenantId, "finance.read");
+    return readReceiptReport(access, request.query);
+  });
+  app.get<{ Params: TenantParams }>("/api/v1/tenants/:tenantId/reports/receipts/export", async request => {
+    const access = await authorize(request, request.params.tenantId, "finance.read");
+    return readReceiptReport(access, request.query, true);
+  });
+  app.get<{ Params: TenantParams }>("/api/v1/tenants/:tenantId/reports/installments", async request => {
+    const access = await authorize(request, request.params.tenantId, "finance.read");
+    return readInstallmentReport(access, request.query);
+  });
+  app.get<{ Params: TenantParams }>("/api/v1/tenants/:tenantId/reports/installments/export", async request => {
+    const access = await authorize(request, request.params.tenantId, "finance.read");
+    return readInstallmentReport(access, request.query, true);
   });
   const operationsBase = "/api/v1/tenants/:tenantId/operations";
   app.post<{ Params: TenantParams }>(`${operationsBase}/commands`, { bodyLimit: 2 * 1024 * 1024 }, async (request) => {
@@ -338,6 +397,14 @@ export async function buildApp(options: BuildOptions): Promise<FastifyInstance> 
     return { tenantId: access.tenantId, customer: await updateCustomerRecord(access.pool, requireUuid(request.params.id), request.body, access) };
   });
   if (options.frontendRoot) await registerFrontend(app, options.frontendRoot);
-  await app.ready();
-  return app;
+  let disposeA1: (() => void) | undefined;
+  try {
+    disposeA1 = registerA1CertificateRoutes(app, config, authorize);
+    await app.ready();
+    return app;
+  } catch (error) {
+    disposeA1?.();
+    await app.close().catch(() => {});
+    throw error;
+  }
 }

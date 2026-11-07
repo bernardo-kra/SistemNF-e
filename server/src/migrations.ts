@@ -209,4 +209,134 @@ export async function migrateTenant(pool: Pool): Promise<void> {
     );
     CREATE TRIGGER company_branding_requests_immutable BEFORE UPDATE OR DELETE ON company_branding_requests FOR EACH ROW EXECUTE FUNCTION prevent_audit_changes();
   `, "tenant_005");
+  await migrate(pool, "tenant", `
+    CREATE TABLE nfeio_sandbox_requests (
+      id uuid PRIMARY KEY,tenant_id uuid NOT NULL,actor_id text NOT NULL,
+      kind text NOT NULL CHECK(kind IN ('company','municipal','invoice')),
+      company_id text,payload jsonb NOT NULL CHECK(jsonb_typeof(payload)='object'),fingerprint text NOT NULL,
+      environment text NOT NULL DEFAULT 'Development' CHECK(environment='Development'),
+      at timestamptz NOT NULL DEFAULT clock_timestamp(),UNIQUE(tenant_id,kind),
+      CHECK((kind='company' AND company_id IS NULL) OR (kind<>'company' AND company_id IS NOT NULL))
+    );
+    CREATE TABLE nfeio_sandbox_events (
+      sequence bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,request_id uuid NOT NULL REFERENCES nfeio_sandbox_requests(id),
+      state text NOT NULL CHECK(state IN ('known','unknown','rejected','observed')),
+      response jsonb NOT NULL DEFAULT '{}' CHECK(jsonb_typeof(response)='object'),code text NOT NULL DEFAULT '',
+      at timestamptz NOT NULL DEFAULT clock_timestamp()
+    );
+    CREATE INDEX nfeio_sandbox_events_request ON nfeio_sandbox_events(request_id,sequence DESC);
+    CREATE TRIGGER nfeio_sandbox_requests_immutable BEFORE UPDATE OR DELETE ON nfeio_sandbox_requests FOR EACH ROW EXECUTE FUNCTION prevent_audit_changes();
+    CREATE TRIGGER nfeio_sandbox_events_immutable BEFORE UPDATE OR DELETE ON nfeio_sandbox_events FOR EACH ROW EXECUTE FUNCTION prevent_audit_changes();
+  `, "tenant_006");
+  await migrate(pool, "tenant", `
+    CREATE TABLE nfse_dps_counters (
+      environment text NOT NULL CHECK(environment='production-restricted'),
+      municipality_code text NOT NULL CHECK(municipality_code ~ '^[0-9]{7}$'),
+      issuer_cnpj text NOT NULL CHECK(issuer_cnpj ~ '^[A-Z0-9]{12}[0-9]{2}$'),
+      series integer NOT NULL CHECK(series BETWEEN 1 AND 49999),
+      last_number bigint NOT NULL CHECK(last_number BETWEEN 0 AND 999999999999999),
+      PRIMARY KEY(environment,municipality_code,issuer_cnpj,series)
+    );
+    CREATE FUNCTION protect_nfse_dps_counter() RETURNS trigger LANGUAGE plpgsql AS $body$
+    BEGIN
+      IF TG_OP='DELETE' THEN RAISE EXCEPTION 'DPS counter is permanent' USING ERRCODE='42501'; END IF;
+      IF NEW.environment<>OLD.environment OR NEW.municipality_code<>OLD.municipality_code OR NEW.issuer_cnpj<>OLD.issuer_cnpj OR NEW.series<>OLD.series OR NEW.last_number<>OLD.last_number+1 THEN
+        RAISE EXCEPTION 'DPS counter must advance by one' USING ERRCODE='42501';
+      END IF;
+      RETURN NEW;
+    END; $body$;
+    CREATE TRIGGER nfse_dps_counter_monotonic BEFORE UPDATE OR DELETE ON nfse_dps_counters FOR EACH ROW EXECUTE FUNCTION protect_nfse_dps_counter();
+    CREATE TABLE nfse_dps_drafts (
+      id uuid PRIMARY KEY,tenant_id uuid NOT NULL,environment text NOT NULL CHECK(environment='production-restricted'),
+      order_id uuid NOT NULL,order_version integer NOT NULL CHECK(order_version>0),source_type text NOT NULL DEFAULT 'order' CHECK(source_type='order'),
+      customer_id uuid NOT NULL REFERENCES customers(id),actor_id text NOT NULL,at timestamptz NOT NULL DEFAULT clock_timestamp(),
+      municipality_code text NOT NULL,issuer_cnpj text NOT NULL,series integer NOT NULL,number bigint NOT NULL CHECK(number BETWEEN 1 AND 999999999999999),
+      dps_id text NOT NULL UNIQUE CHECK(length(dps_id)=45),schema_id text NOT NULL,
+      fingerprint text NOT NULL CHECK(fingerprint ~ '^[a-f0-9]{64}$'),xml text NOT NULL CHECK(octet_length(xml) BETWEEN 1 AND 131072),
+      service_amount_cents bigint NOT NULL CHECK(service_amount_cents BETWEEN 1 AND 1000000000000),
+      excluded_parts_cents bigint CHECK(excluded_parts_cents BETWEEN 0 AND 1000000000000),pending_checks text[] NOT NULL CHECK(cardinality(pending_checks)>0),
+      UNIQUE(tenant_id,environment,order_id),UNIQUE(environment,municipality_code,issuer_cnpj,series,number),
+      FOREIGN KEY(source_type,order_id) REFERENCES operational_records(entity_type,id),
+      FOREIGN KEY(environment,municipality_code,issuer_cnpj,series) REFERENCES nfse_dps_counters(environment,municipality_code,issuer_cnpj,series)
+    );
+    CREATE TABLE nfse_dps_requests (
+      id uuid PRIMARY KEY,tenant_id uuid NOT NULL,actor_id text NOT NULL,fingerprint text NOT NULL CHECK(fingerprint ~ '^[a-f0-9]{64}$'),
+      draft_id uuid NOT NULL REFERENCES nfse_dps_drafts(id),at timestamptz NOT NULL DEFAULT clock_timestamp()
+    );
+    CREATE TABLE nfse_dps_events (
+      sequence bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,draft_id uuid NOT NULL REFERENCES nfse_dps_drafts(id),
+      kind text NOT NULL CHECK(kind='prepared'),actor_id text NOT NULL,at timestamptz NOT NULL DEFAULT clock_timestamp(),UNIQUE(draft_id,kind)
+    );
+    CREATE TRIGGER nfse_dps_drafts_immutable BEFORE UPDATE OR DELETE ON nfse_dps_drafts FOR EACH ROW EXECUTE FUNCTION prevent_audit_changes();
+    CREATE TRIGGER nfse_dps_requests_immutable BEFORE UPDATE OR DELETE ON nfse_dps_requests FOR EACH ROW EXECUTE FUNCTION prevent_audit_changes();
+    CREATE TRIGGER nfse_dps_events_immutable BEFORE UPDATE OR DELETE ON nfse_dps_events FOR EACH ROW EXECUTE FUNCTION prevent_audit_changes();
+  `, "tenant_007");
+  await migrate(pool, "tenant", `
+    CREATE TABLE fiscal_records (
+      kind text NOT NULL CHECK(kind IN ('profile','customer')),entity_id uuid NOT NULL,tenant_id uuid NOT NULL,
+      version integer NOT NULL CHECK(version>0),body jsonb NOT NULL CHECK(jsonb_typeof(body)='object'),
+      actor_id text NOT NULL,at timestamptz NOT NULL DEFAULT clock_timestamp(),PRIMARY KEY(kind,entity_id)
+    );
+    CREATE TABLE fiscal_record_versions (
+      kind text NOT NULL,entity_id uuid NOT NULL,tenant_id uuid NOT NULL,version integer NOT NULL CHECK(version>0),
+      body jsonb NOT NULL CHECK(jsonb_typeof(body)='object'),field_names text[] NOT NULL,actor_id text NOT NULL,at timestamptz NOT NULL,
+      PRIMARY KEY(kind,entity_id,version),FOREIGN KEY(kind,entity_id) REFERENCES fiscal_records(kind,entity_id)
+    );
+    CREATE TABLE fiscal_settings_requests (
+      id uuid PRIMARY KEY,tenant_id uuid NOT NULL,actor_id text NOT NULL,fingerprint text NOT NULL,
+      result jsonb NOT NULL CHECK(jsonb_typeof(result)='object'),at timestamptz NOT NULL DEFAULT clock_timestamp()
+    );
+    CREATE TABLE fiscal_prepare_requests (
+      id uuid PRIMARY KEY REFERENCES nfse_dps_requests(id),tenant_id uuid NOT NULL,actor_id text NOT NULL,fingerprint text NOT NULL,
+      draft_id uuid NOT NULL REFERENCES nfse_dps_drafts(id),profile_version integer NOT NULL CHECK(profile_version>0),
+      customer_fiscal_version integer NOT NULL CHECK(customer_fiscal_version>0),at timestamptz NOT NULL DEFAULT clock_timestamp()
+    );
+    CREATE TRIGGER fiscal_record_versions_immutable BEFORE UPDATE OR DELETE ON fiscal_record_versions FOR EACH ROW EXECUTE FUNCTION prevent_audit_changes();
+    CREATE TRIGGER fiscal_settings_requests_immutable BEFORE UPDATE OR DELETE ON fiscal_settings_requests FOR EACH ROW EXECUTE FUNCTION prevent_audit_changes();
+    CREATE TRIGGER fiscal_prepare_requests_immutable BEFORE UPDATE OR DELETE ON fiscal_prepare_requests FOR EACH ROW EXECUTE FUNCTION prevent_audit_changes();
+  `, "tenant_008");
+  await migrate(pool, "tenant", `
+    CREATE TABLE nfse_a1_custody (
+      tenant_id uuid PRIMARY KEY,version integer NOT NULL CHECK(version>0),
+      issuer_cnpj text NOT NULL CHECK(issuer_cnpj ~ '^[A-Z0-9]{12}[0-9]{2}$'),
+      fingerprint text NOT NULL CHECK(fingerprint ~ '^[a-f0-9]{64}$'),
+      valid_from timestamptz NOT NULL CHECK(isfinite(valid_from)),valid_to timestamptz NOT NULL CHECK(isfinite(valid_to) AND valid_to>valid_from),
+      key_bits integer NOT NULL CHECK(key_bits BETWEEN 2048 AND 8192),
+      key_id text NOT NULL CHECK(key_id ~ '^[a-z][a-z0-9_-]{0,31}$'),
+      nonce bytea NOT NULL CHECK(octet_length(nonce)=12),tag bytea NOT NULL CHECK(octet_length(tag)=16),
+      ciphertext bytea NOT NULL CHECK(octet_length(ciphertext) BETWEEN 9 AND 1050632),
+      updated_by text NOT NULL CHECK(length(updated_by) BETWEEN 1 AND 200),updated_at timestamptz NOT NULL CHECK(isfinite(updated_at))
+    );
+    CREATE TABLE nfse_a1_requests (
+      id uuid PRIMARY KEY,tenant_id uuid NOT NULL,actor_id text NOT NULL,
+      key_id text NOT NULL CHECK(key_id ~ '^[a-z][a-z0-9_-]{0,31}$'),mac text NOT NULL CHECK(mac ~ '^[a-f0-9]{64}$'),
+      result jsonb NOT NULL CHECK(jsonb_typeof(result)='object' AND octet_length(result::text)<=8192),
+      at timestamptz NOT NULL DEFAULT clock_timestamp()
+    );
+    CREATE TRIGGER nfse_a1_requests_immutable BEFORE UPDATE OR DELETE ON nfse_a1_requests FOR EACH ROW EXECUTE FUNCTION prevent_audit_changes();
+    CREATE TRIGGER nfse_a1_custody_permanent BEFORE DELETE ON nfse_a1_custody FOR EACH ROW EXECUTE FUNCTION prevent_audit_changes();
+  `, "tenant_009");
+  await migrate(pool, "tenant", `
+    ALTER TABLE nfse_dps_drafts ADD CONSTRAINT nfse_dps_drafts_tenant_id UNIQUE(tenant_id,id);
+    CREATE TABLE nfse_dps_signatures (
+      id uuid PRIMARY KEY,tenant_id uuid NOT NULL,draft_id uuid NOT NULL UNIQUE,
+      certificate_version integer NOT NULL CHECK(certificate_version>0),
+      certificate_fingerprint text NOT NULL CHECK(certificate_fingerprint ~ '^[a-f0-9]{64}$'),
+      profile text NOT NULL CHECK(profile='experimental-rsa-sha256-c14n-v1'),
+      xml text NOT NULL CHECK(octet_length(xml) BETWEEN 1 AND 163840),
+      xml_sha256 text NOT NULL CHECK(xml_sha256 ~ '^[a-f0-9]{64}$'),
+      source_xml_sha256 text NOT NULL CHECK(source_xml_sha256 ~ '^[a-f0-9]{64}$'),
+      pending_checks text[] NOT NULL CHECK(cardinality(pending_checks) BETWEEN 1 AND 20),
+      actor_id text NOT NULL CHECK(length(actor_id) BETWEEN 1 AND 200),
+      at timestamptz NOT NULL DEFAULT clock_timestamp() CHECK(isfinite(at)),
+      UNIQUE(tenant_id,id),FOREIGN KEY(tenant_id,draft_id) REFERENCES nfse_dps_drafts(tenant_id,id)
+    );
+    CREATE TABLE nfse_dps_signature_requests (
+      id uuid PRIMARY KEY,tenant_id uuid NOT NULL,actor_id text NOT NULL CHECK(length(actor_id) BETWEEN 1 AND 200),
+      signature_id uuid NOT NULL,at timestamptz NOT NULL DEFAULT clock_timestamp() CHECK(isfinite(at)),
+      FOREIGN KEY(tenant_id,signature_id) REFERENCES nfse_dps_signatures(tenant_id,id)
+    );
+    CREATE TRIGGER nfse_dps_signatures_immutable BEFORE UPDATE OR DELETE ON nfse_dps_signatures FOR EACH ROW EXECUTE FUNCTION prevent_audit_changes();
+    CREATE TRIGGER nfse_dps_signature_requests_immutable BEFORE UPDATE OR DELETE ON nfse_dps_signature_requests FOR EACH ROW EXECUTE FUNCTION prevent_audit_changes();
+  `, "tenant_010");
 }

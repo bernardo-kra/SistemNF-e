@@ -5,10 +5,11 @@ export const customerPermissions: readonly CustomerPermission[] = ["customers.re
 export const operationalPermissions = ["products.read", "products.create", "products.update", "products.archive", "products.cost.read", "stock.read", "stock.receive", "sales.read", "sales.create", "sales.deliver", "sales.discount", "orders.read", "orders.create", "orders.update", "orders.advance", "orders.deliver", "purchases.read", "purchases.import", "purchases.receive", "audit.read"] as const;
 export type OperationalPermission = typeof operationalPermissions[number];
 export const financePermissions = ["finance.read", "finance.agreements.create", "finance.receive", "finance.accounts.manage", "finance.cash.manage"] as const;
-export type AssignablePermission = CustomerPermission | OperationalPermission | typeof financePermissions[number];
+export const fiscalPermissions = ["fiscal.read", "fiscal.configure", "fiscal.prepare", "fiscal.certificates.manage"] as const;
+export type AssignablePermission = CustomerPermission | OperationalPermission | typeof financePermissions[number] | typeof fiscalPermissions[number];
 export type Permission = AssignablePermission | "team.read" | "team.manage";
 export type PermissionOverrides = Partial<Record<AssignablePermission, boolean>>;
-export const assignablePermissions: readonly AssignablePermission[] = [...customerPermissions, ...operationalPermissions, ...financePermissions];
+export const assignablePermissions: readonly AssignablePermission[] = [...customerPermissions, ...operationalPermissions, ...financePermissions, ...fiscalPermissions];
 export const permissionDependencies: Partial<Record<AssignablePermission, readonly AssignablePermission[]>> = {
   "customers.create": ["customers.read"], "customers.update": ["customers.read"], "customers.archive": ["customers.read", "customers.update"],
   "products.create": ["products.read"], "products.update": ["products.read"], "products.archive": ["products.read", "products.update"], "products.cost.read": ["products.read"],
@@ -19,6 +20,8 @@ export const permissionDependencies: Partial<Record<AssignablePermission, readon
   "purchases.read": ["products.read", "products.cost.read"], "purchases.import": ["purchases.read"], "purchases.receive": ["purchases.read", "stock.receive"],
   "finance.agreements.create": ["finance.read", "customers.read"], "finance.receive": ["finance.read", "customers.read"],
   "finance.accounts.manage": ["finance.read"], "finance.cash.manage": ["finance.read"],
+  "fiscal.configure": ["fiscal.read"], "fiscal.prepare": ["fiscal.read", "orders.read"],
+  "fiscal.certificates.manage": ["fiscal.read", "fiscal.configure"],
 };
 
 export function permissionsForRole(role: string, overrides: unknown = {}): Permission[] {

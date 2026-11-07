@@ -1,4 +1,5 @@
 import { stages, type DemoState } from "../domain";
+import { csvRecords } from "./csv";
 import { financialDate, installmentBalance, isCivilDate, methodLabels } from "../finance/engine";
 import type { FinanceSource, PaymentAgreement } from "../finance/types";
 import type { ReportColumn, ReportFilters, ReportKind, ReportResult, ReportRow, ReportTotals } from "./types";
@@ -189,11 +190,6 @@ export function reportCellText(row: ReportRow, column: ReportColumn): string {
   return String(value);
 }
 
-function csvCell(value: string): string {
-  const neutralized = /^[\s\u0000-\u001f]*[=+\-@]/.test(value) || /^[\t\r\n]/.test(value) ? `'${value}` : value;
-  return `"${neutralized.replaceAll('"', '""')}"`;
-}
-
 export function reportToCsv(report: ReportResult): string {
   const filters = report.filters;
   const records: string[][] = [
@@ -205,5 +201,5 @@ export function reportToCsv(report: ReportResult): string {
   for (const warning of report.warnings) records.push(["Observação", warning]);
   records.push([], report.columns.map((column) => column.label));
   for (const row of report.rows) records.push(report.columns.map((column) => reportCellText(row, column)));
-  return records.map((record) => record.map(csvCell).join(";")).join("\r\n");
+  return csvRecords(records);
 }

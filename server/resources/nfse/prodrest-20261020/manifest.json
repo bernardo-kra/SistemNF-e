@@ -1,0 +1,13 @@
+{
+  "environment": "production-restricted",
+  "schemaVersion": "1.01",
+  "publishedPackage": "2026-10-20",
+  "sourceUrl": "https://www.gov.br/nfse/pt-br/biblioteca/documentacao-tecnica/producao-restrita/esquemas_prod_restrita_20261020.zip",
+  "sourceArchiveSha256": "25fdcecc651a67a216496ab10d7566631e6ed10f721e37d62c7845dadb0ea267",
+  "files": {
+    "DPS_v1.01.xsd": "fe45e5250a48e519aba89fc6a472863b8e602ed957778fb64692804933a00d0c",
+    "tiposComplexos_v1.01.xsd": "4f66f7c15bd3b05b3a16cbe5fa671b90c10e4c9c74276038730be1c8c794b721",
+    "tiposSimples_v1.01.xsd": "562e326724f85cd7c41176d35e67c542376784d4c950ec1719704d480a8af226",
+    "xmldsig-core-schema.xsd": "8c9792a056aedcadfc95bf16f2d7448a35da40df71533e20aea37d0329980c48"
+  }
+}

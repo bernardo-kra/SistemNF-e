@@ -1,5 +1,7 @@
 # Sistem — gestão da loja
 
+**Implementado localmente em 06/11/2026, ainda não publicado:** Relatórios consulta recebimentos e parcelas do banco da empresa. Recebimentos filtra período, nome do recibo e meio; Parcelas filtra vencimento, nome do acordo e situação, com saldo/pago/vencido na data-base escolhida. Pagamentos posteriores não reduzem o saldo histórico. Ambos têm totais integrais, páginas e CSV da seleção (até 10 mil linhas), usando a sessão/permissão financeira existente. Nenhuma informação da demonstração alimenta os relatórios conectados. Vendas e OS conectados continuam pendentes. [Escopo, testes e limites](docs/12-logs-e-relatorios.md#rel-par--parcelas-na-data-base--06112026).
+
 **Publicado e conferido em HTTPS em 29/10/2026:** [Abrir Sistem](https://sistemnf-e.onrender.com/), código funcional `9c108b8`. Inclui desconto por item, pesquisa/escolha no mesmo campo para cliente e produto, recebimento na própria OS e logotipo/fundo de comprovante em Configurações. 355 testes web, seis checks, financeiro35/35 e build/API aprovados. Migração aplicada em todos os bancos operacionais configurados; dados preservados. [Publicação, evidências e limites](docs/15-auditoria-acessos-e-filtros.md).
 
 Documentação consolidada em 28/10/2026: [regras de negócio](docs/16-regras-de-negocio.md), [requisitos funcionais e não funcionais](docs/17-requisitos-funcionais-e-nao-funcionais.md), [mapa mental](docs/18-mapa-mental.md) e [resumo para apresentar ao cliente](docs/19-resumo-para-clientes.md). Cada recurso distingue operação conectada, demonstração e pendências; não há promessa de integração ainda não entregue.
@@ -82,6 +84,14 @@ Em **Nova venda**, use **Adicionar produto** para outra linha e ajuste a quantid
 
 O [plano executado e os próximos passos](docs/08-etapa-fiscal-e-proximos-passos.md) descrevem as regras da simulação, os contratos propostos e a sequência até o piloto fiscal real.
 
+O piloto administrativo anterior na NFE.io foi removido do código, dos scripts, dos testes e da configuração privada local. O histórico da nota de teste e seus documentos permanece somente no banco, com a migração já aplicada preservada. O produto não depende da NFE.io para o caminho fiscal escolhido. Evidências e limites estão no [registro fiscal](docs/08-etapa-fiscal-e-proximos-passos.md).
+
+O caminho fiscal escolhido é integração direta com os órgãos, começando pela NFS-e nacional. Piloto em Sertão/RS ainda sem A1 real e com regime não confirmado. A área Fiscal prepara DPS pela OS, reutiliza cliente/valor e dados fiscais salvos, reserva número e conserva XML/autoria/histórico. A configuração separa município emissor do local da prestação e aceita dados ainda desconhecidos, sem presumir regime. O recorte técnico de preparação continua limitado a Simples ME/EPP com apuração integral, sem regime especial/retenção, em homologação de 2026 e XSDs de teste de 20/10/2026.
+
+Implementado localmente: cadastro protegido do A1 em `/fiscal/configuracao/`, com direito próprio, inspeção isolada e custódia cifrada, além da assinatura experimental interna persistida/recuperável. O envio exige arquivo privado de chaves configurado no servidor; sua preparação/rotação tem ferramenta explícita, sem gerar segredo automaticamente. Funcionários só recebem a concessão por decisão do gestor. A ativação/backup no ambiente e o certificado real ainda não foram preparados; migrações novas foram executadas somente em bancos genéricos isolados.
+
+Transmissão/reconciliação, conferências fiscais e validação autenticada oficial continuam pendentes; nenhum documento está liberado para envio. NF-e/NFC-e de mercadorias ainda não estão integradas. [Estado, critérios e evidências](docs/08-etapa-fiscal-e-proximos-passos.md).
+
 O [desenho financeiro ampliado](docs/09-financeiro-pagamentos-e-fluxo-de-caixa.md) continua como direção do módulo completo. O [primeiro recorte implementado pela equipe](docs/11-financeiro-primeiro-recorte.md) entrega acordos, parcelas, recebimentos manuais, recibos e turno mínimo. Cartão, cheque, pagamento misto numa mesma baixa, contas a pagar, conciliação bancária, juros, renegociação, estorno e reembolso continuam pendentes. Os novos registros são próprios, sem reescrever `OS.received`; resumos de OS somam histórico informado e novas alocações uma única vez. Sem estorno, use somente dados fictícios e confira antes de confirmar.
 
 A referência operacional dos exemplos permanece em 16/10/2026. O financeiro usa a data atual e o instante real do registro, com dia civil em `America/Sao_Paulo`; o usuário escolhe os vencimentos, mas não retrodata recebimentos. A previsão contempla só parcelas de acordos confirmados, separando vencidos; não é saldo bancário real nem projeção completa de caixa.
@@ -100,14 +110,26 @@ Esse recorte não migra dados locais nem reproduz ainda todas as funcionalidades
 
 ## Organização
 
+Revisão local de manutenção em 04/11/2026: módulos fiscais com nomes/etapas legíveis, campos JSON sem `any` nesse cadastro e assinatura experimental em processo descartável com prazo/cancelamento. Mantidos contratos, stack e dados. [Avaliação, testes e limites](docs/08-etapa-fiscal-e-proximos-passos.md#mnt--manutenção-e-execução-isolada--04112026).
+
 A [equipe de agentes](docs/10-equipe-de-agentes.md) define sete papéis: orquestrador, analista, arquiteto, desenvolvedor, QA e Segurança, revisor e especialista sob demanda. O agente principal coordena e seleciona os papéis necessários, sem iniciar todos por rotina. O guia inclui contratos de delegação/entrega, limites de autonomia e critérios para reduzir digitação repetida, trocas de tela e lançamentos manuais evitáveis. Os perfis do Codex ficam em `.codex/agents` e herdam as configurações da sessão. Alterar essas instruções não implementa as melhorias propostas para o balcão.
 
 - `src/app`: rotas Next.js, estilos globais e tokens locais do design system.
 - `src/components`: estrutura visual e componentes compartilhados.
 - `src/features`: telas e interações por domínio.
+- `src/features/workspace-session.tsx` e `src/lib/access-api.ts`: sessão/empresa ativa e comunicação autenticada; módulos conectados usam o backend.
+- `server/src/app.ts`: composição HTTP, autenticação, autorização e tratamento de erros. Regras de domínio ficam nos módulos de clientes, operações, financeiro e fiscal.
+- `server/src/operations.ts` e `server/src/finance.ts`: comandos e consultas operacionais; preservam versão, transação, auditoria e repetição idempotente.
+- `server/src/fiscal-profile.ts` e `server/src/nfse-dps-journal.ts`: configuração fiscal persistida, preparação pela OS e numeração/histórico da DPS.
+- `server/src/nfse-dps-signature.ts`: primitiva criptográfica offline experimental; `nfse-dps-isolation.ts` inspeciona/assina em filho descartável com prazo/cancelamento, usando `nfse-dps-signing-child.ts` como entrada fixa.
+- `server/src/nfse-a1-custody.ts`: custódia cifrada interna por empresa e coordenação da assinatura offline de DPS armazenada. Chaves dedicadas somente em memória; sem cadastro/upload HTTP, gestão operacional das chaves ou envio fiscal.
+- `server/src/nfse-dps-signature-journal.ts`: assinatura experimental persistida, pedidos recuperáveis e consultas separadas de metadados/XML. Preserva a DPS/numeração e não libera transmissão. [Recorte e limites](docs/08-etapa-fiscal-e-proximos-passos.md#nfsd-sp--assinatura-offline-persistida--05112026).
+- `server/src/nfse-a1-routes.ts` e `nfse-a1-keyfile.ts`: upload autenticado com limites e leitura protegida de chaves do servidor; `scripts/a1-keyring.ts` prepara um arquivo novo sem sobrescrever ou remover histórico. [Configuração e limites](server/README.md#cadastro-protegido-do-certificado-a1).
+- `server/src/migrations.ts`: migrações explícitas e incrementais, separadas entre controle e banco operacional; não reescrever migração aplicada.
+- `server/test`: testes Node com PostgreSQL/certificados genéricos isolados; smokes externos exigem execução explícita. Não usar registros da empresa como fixtures.
 - `src/lib/domain.ts`: tipos, etapas e formatação; valores monetários em centavos nesta simulação.
 - `src/lib/seed.ts`: registros fictícios.
-- `src/lib/demo-store.tsx`: operações e persistência simuladas. Na integração real, substituir por serviços HTTP preservando contratos, autorização e validações no servidor.
+- `src/lib/demo-store.tsx`: operações e persistência de `/demo/`. Módulos conectados têm seu próprio caminho HTTP; não compartilham esse armazenamento com dados reais.
 - `src/lib/fiscal`: tipos, conferência estrutural, transições e adaptador exclusivamente simulado.
 - `src/lib/finance`: registros financeiros da demonstração. `server/src/finance.ts` e `src/features/finance-live.tsx` atendem o recorte conectado, sem misturar os dois armazenamentos.
 - `src/lib/diagnostics`: catálogo controlado, projeção dos eventos, filtros e buffer local independente.

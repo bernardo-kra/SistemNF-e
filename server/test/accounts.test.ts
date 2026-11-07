@@ -67,7 +67,8 @@ test("ACC-02 opções e DTO de equipe só expõem campos do contrato e dados da 
     const member = listed.json().items[0]; assert.deepEqual(Object.keys(member).sort(), memberKeys);
     assert.equal(member.id, actor.id); assert.equal(member.version, 1);
     assert.equal(member.createdAt, null); assert.equal(member.updatedAt, null);
-    assert.deepEqual(member.permissions.slice().sort(), [...customerPermissions, ...operationalPermissions, ...financePermissions, "team.read", "team.manage"].sort());
+    // NFSD-P adds explicit fiscal rights for managers; employees keep their existing grants.
+    assert.deepEqual(member.permissions.slice().sort(), [...customerPermissions, ...operationalPermissions, ...financePermissions, "fiscal.read", "fiscal.configure", "fiscal.prepare", "fiscal.certificates.manage", "team.read", "team.manage"].sort());
     for (const route of [members(TENANT_B), `${base(TENANT_B)}/access-options`, auditPath(TENANT_B)]) {
       assertError(await app.instance.inject({ method: "GET", url: route, headers: { cookie, "x-tenant-id": TENANT_B } }), 403);
     }

@@ -179,10 +179,11 @@ test("UNI10 jornada real não lê nem altera armazenamento demonstrativo", async
 });
 
 test("UNI11 recursos pendentes usam o mesmo contexto e indicam preparação sem indicadores fictícios", async ({ page }) => {
-  const state = await api(page); await page.goto("/fiscal/");
+  // Fiscal has its own connected, permission-gated draft flow (fiscal-live.spec.ts).
+  // Reports now have their own connected, finance-gated flow (receipt-reports.spec.ts).
+  // Partners remain pending and must not show demo data in the workspace.
+  const state = await api(page); await page.goto("/parceiros/");
   await expect(nav(page)).toBeVisible(); await expect(page.getByRole("main")).toContainText(/em preparação/i);
-  await nav(page).getByRole("link", { name: "Relatórios", exact: true }).click();
-  await expect(page.getByRole("main")).toContainText(/em preparação/i);
   expect(state.identityReads).toBe(1);
   // Brand metadata belongs to the shared company header; pending modules still read no domain data.
   const brandingPath = `/api/v1/tenants/${tenantA}/branding`;

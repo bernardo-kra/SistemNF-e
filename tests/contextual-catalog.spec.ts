@@ -5,7 +5,7 @@ import {
 } from "./contextual-helpers";
 
 // CAD-01..09: resultados definidos pelos requisitos antes do código do produto.
-test("CAD-01 OS mantém todos os campos ao criar cliente e técnico, sem salvar a OS", async ({ page }) => {
+test("CAD-01 OS mantém todos os campos ao criar cliente e técnico, sem salvar a OS", async ({ page }, testInfo) => {
   await startContextual(page);
   const parent = await openOrder(page);
   await fillOrderDraft(parent);
@@ -23,7 +23,7 @@ test("CAD-01 OS mantém todos os campos ao criar cliente e técnico, sem salvar 
   await expect(technician).toContainText(/operacional/i);
   await expect(technician.locator('input[type="password"]')).toHaveCount(0);
   await technician.getByLabel(/^Nome/).fill("Cláudia Nunes");
-  await page.screenshot({ path: "docs/evidencias/cadastros-os-tecnico.png" });
+  await page.screenshot({ path: testInfo.outputPath("cadastros-os-tecnico.png") });
   await technician.getByRole("button", { name: "Salvar técnico", exact: true }).click();
   await expect(technician).toHaveCount(0);
   await expectOrderDraft(parent, savedCustomer.id, "Cláudia Nunes");
@@ -185,7 +185,7 @@ test("CAD-04/06 SKU duplicado preserva os dois rascunhos; produto salvo fica com
   expectNoOperationalEffects(reloaded, before);
 });
 
-test("CAD-05 entrada exige conferência própria, cancela sem efeito e reserva só na venda confirmada", async ({ page }) => {
+test("CAD-05 entrada exige conferência própria, cancela sem efeito e reserva só na venda confirmada", async ({ page }, testInfo) => {
   await startContextual(page, "/vendas/");
   const parent = await openSale(page);
   const before = await contextualSaved(page);
@@ -221,7 +221,7 @@ test("CAD-05 entrada exige conferência própria, cancela sem efeito e reserva s
   await expect(parent.getByLabel(/^Cliente/)).toHaveValue("c3");
   current = await contextualSaved(page);
   expect(current.products.find((p) => p.id === product.id)).toMatchObject({ stock: 5, reserved: 0 });
-  await page.screenshot({ path: "docs/evidencias/cadastros-venda-entrada.png" });
+  await page.screenshot({ path: testInfo.outputPath("cadastros-venda-entrada.png") });
   expectNoOperationalEffects(current, before);
   await parent.getByRole("button", { name: "Confirmar e reservar", exact: true }).click();
   await expect(parent).toHaveCount(0);
@@ -288,7 +288,7 @@ test("CAD-05 produto serializado pode ser cadastrado, mas não permite confirmar
   expectNoOperationalEffects(await contextualSaved(page), before);
 });
 
-test("CAD-08 celular mantém etapa auxiliar e ações no viewport sem rolagem horizontal", async ({ page }) => {
+test("CAD-08 celular mantém etapa auxiliar e ações no viewport sem rolagem horizontal", async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await startContextual(page);
   const parent = await openOrder(page);
@@ -302,7 +302,7 @@ test("CAD-08 celular mantém etapa auxiliar e ações no viewport sem rolagem ho
   expect(geometry.width).toBeLessThanOrEqual(geometry.client + 1);
   expect(geometry.left).toBeGreaterThanOrEqual(0);
   expect(geometry.right).toBeLessThanOrEqual(390);
-  await page.screenshot({ path: "docs/evidencias/cadastros-os-mobile.png" });
+  await page.screenshot({ path: testInfo.outputPath("cadastros-os-mobile.png") });
   await save.click();
   await expectOrderDraft(parent, "c2", "Técnica no celular");
 });

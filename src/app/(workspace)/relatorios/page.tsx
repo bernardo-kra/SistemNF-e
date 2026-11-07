@@ -1,2 +1,2 @@
-import { WorkspacePending } from "@/features/workspace-home";
-export default function Page() { return <WorkspacePending title="Relatórios" />; }
+import { ConnectedReports } from "@/features/connected-reports";
+export default function Page() { return <ConnectedReports />; }

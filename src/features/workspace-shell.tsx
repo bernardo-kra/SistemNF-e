@@ -18,9 +18,10 @@ export const workspaceModules = [
   { href: "/estoque/", label: "Estoque", permission: "stock.read", icon: Layers3 },
   { href: "/compras/", label: "Compras", permission: "purchases.read", icon: ClipboardList },
   { href: "/financeiro/", label: "Financeiro", permission: "finance.read", icon: Wallet },
+  { href: "/relatorios/", label: "Relatórios", permission: "finance.read", icon: FileText },
   { href: "/acessos/", label: "Equipe e acessos", permission: "team.manage", icon: UsersRound },
 ];
-const pending = [{ href: "/fiscal/", label: "Documentos fiscais" }, { href: "/relatorios/", label: "Relatórios" }, { href: "/parceiros/", label: "Parceiros" }];
+const pending = [{ href: "/fiscal/", label: "Documentos fiscais" }, { href: "/parceiros/", label: "Parceiros" }];
 export function WorkspaceShell({ children }: { children: ReactNode }) {
   const { tenant, phase, epoch } = useWorkspace(), path = usePathname();
   const brandingTenant = phase === "ready" && path !== "/administracao/" ? tenant : "";

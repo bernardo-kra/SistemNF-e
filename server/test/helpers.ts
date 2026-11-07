@@ -6,6 +6,7 @@ import { buildApp } from "../src/app.ts";
 import { createAuth } from "../src/auth.ts";
 import { migrateControl, migrateTenant } from "../src/migrations.ts";
 import { createTestCluster } from "../scripts/test-cluster.ts";
+import type { ApiConfig } from "../src/config.ts";
 
 export const ORIGIN = "http://127.0.0.1:3000";
 export const TENANT_A = "10000000-0000-4000-8000-000000000001";
@@ -54,7 +55,7 @@ export async function createFixture() {
       );
       return { id: result.user.id, email, password: PASSWORD };
     }
-    async function app(overrides: Partial<typeof config> = {}) {
+    async function app(overrides: Partial<ApiConfig> = {}) {
       const controlPool = new Pool({ connectionString: overrides.controlDatabaseUrl ?? config.controlDatabaseUrl, max: 2, connectionTimeoutMillis: 800 });
       const logs: string[] = [];
       const stream = new Writable({ write(chunk, _encoding, callback) { logs.push(chunk.toString()); callback(); } });

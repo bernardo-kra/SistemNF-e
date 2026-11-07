@@ -1,2 +1,2 @@
-import { WorkspacePending } from "@/features/workspace-home";
-export default function Page() { return <WorkspacePending title="Documentos fiscais" />; }
+import { ConnectedFiscal } from "@/features/connected-fiscal";
+export default function Page() { return <ConnectedFiscal />; }

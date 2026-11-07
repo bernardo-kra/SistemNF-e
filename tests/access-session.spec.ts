@@ -26,6 +26,31 @@ async function api(page: Page, handler: (path: string, method: string, body: any
 }
 const failure = (status: number) => ({ status, body: { error: { code: "SERVICE_UNAVAILABLE", message: "Serviço indisponível.", requestId: "qa-safe" } } });
 
+test("CERT-ACCESS dependências do certificado são concedidas e removidas juntas no painel", async ({ page }) => {
+  const fiscal = ["fiscal.read", "fiscal.configure", "fiscal.certificates.manage"];
+  const labels = ["Consultar dados fiscais", "Configurar dados fiscais", "Cadastrar certificado A1"];
+  await api(page, path => {
+    if (path.endsWith("/me")) return { body: { user: manager, tenants: [company()] } };
+    if (path.endsWith("access-options")) return { body: { tenantId: companyA, ...options, operationalPermissions: fiscal.map((id, index) => ({ id, label: labels[index] })) } };
+    if (path.endsWith("access-audit")) return { body: { tenantId: companyA, items: [], total: 0, limit: 25, offset: 0 } };
+    return { body: { tenantId: companyA, items: [member], total: 1, limit: 25, offset: 0 } };
+  });
+  await page.goto("/acessos/");
+  await page.getByRole("button", { name: "Novo funcionário", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Perfil", { exact: true }).selectOption("viewer");
+  await dialog.getByText("Permissões da operação", { exact: true }).click();
+  await dialog.getByLabel(labels[2], { exact: true }).check();
+  await expect(dialog.getByLabel(labels[0], { exact: true })).toBeChecked();
+  await expect(dialog.getByLabel(labels[1], { exact: true })).toBeChecked();
+  await dialog.getByLabel(labels[1], { exact: true }).uncheck();
+  await expect(dialog.getByLabel(labels[2], { exact: true })).not.toBeChecked();
+  await dialog.getByLabel(labels[2], { exact: true }).check();
+  await dialog.getByLabel(labels[0], { exact: true }).uncheck();
+  await expect(dialog.getByLabel(labels[1], { exact: true })).not.toBeChecked();
+  await expect(dialog.getByLabel(labels[2], { exact: true })).not.toBeChecked();
+});
+
 test("ACC-UI01 login e cadastro ficam na página; falha preserva rascunho e tentativa, sucesso não persiste senha", async ({ page }) => {
   let signed = false, fail = true;
   const attempts: any[] = [];

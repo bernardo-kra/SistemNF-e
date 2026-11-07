@@ -155,6 +155,8 @@ function MemberEditor({ tenant, member, options, onClose, onSaved, onUnauthorize
       "products.create": ["products.read"], "products.update": ["products.read"], "products.archive": ["products.read", "products.update"], "products.cost.read": ["products.read"],
       "stock.read": ["products.read"], "stock.receive": ["stock.read"], "sales.read": ["products.read", "customers.read"], "sales.create": ["sales.read", "stock.read"], "sales.deliver": ["sales.read", "stock.read"],
       "sales.discount": ["sales.create"],
+      "fiscal.configure": ["fiscal.read"], "fiscal.prepare": ["fiscal.read", "orders.read"],
+      "fiscal.certificates.manage": ["fiscal.read", "fiscal.configure"],
       "orders.read": ["customers.read"], "orders.create": ["orders.read"], "orders.update": ["orders.read"], "orders.advance": ["orders.read"], "orders.deliver": ["orders.read"],
       "purchases.read": ["products.read", "products.cost.read"], "purchases.import": ["purchases.read"], "purchases.receive": ["purchases.read", "stock.receive"],
       "finance.agreements.create": ["finance.read", "customers.read"], "finance.receive": ["finance.read", "customers.read"], "finance.accounts.manage": ["finance.read"], "finance.cash.manage": ["finance.read"],
