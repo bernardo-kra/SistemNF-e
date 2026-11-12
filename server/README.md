@@ -1,5 +1,99 @@
 # Sistem API
 
+## Versões do orçamento e autorização informada — 12/11/2026
+
+Nova OS guarda `budgetScope` reaproveitado da solicitação, `budgetRevision:1` e `budgetHistory`. Mudança efetiva de escopo/valor antes do aceite gera versão com autor/hora do servidor; notas técnicas/previsão/atribuição não alteram orçamento. Null continua pendente e zero é serviço gratuito. Limite100 preserva histórico, bloqueando só nova versão, não seu aceite.
+
+O comando `order.approve` no endpoint operacional exige `orders.update`, `{id,version,budgetRevision,channel,reference?}`. Canal obrigatório `in_person|whatsapp|phone|email`, referência opcional até500 caracteres. Servidor confere etapa/valor/revisões e copia cliente/escopo/valor para `budgetApproval`; não recebe autoria/data do cliente. Não é assinatura digital do consumidor ou confirmação automática do canal. `order.update` aceita `budgetScope`, mas não muda aprovação por booleano; chamar `order.approve` para novos aceites. Permissões são conferidas também antes do replay. Uma revisão posterior ao aceite/acordo não está habilitada.
+
+Legado aprovado permanece sem evidência fabricada. Legado pendente recebe apenas fotografia observada no primeiro aceite ou mudança material; eco de escopo sem mudança não o migra parcialmente. Corpo/comprovante autorizado podem exibir orçamento/aceite; auditoria registra revisão/canal sem duplicar referência textual. Histórico está no corpo da OS, limitado a100 versões, usando armazenamento/transação existentes; nenhuma migração ou dependência nova. Relatórios continuam retratando os valores atuais, não uma reconstrução histórica. Sem alteração de fiscal, dinheiro, estoque ou peças. [Critérios e validação OS-OV](../docs/16-regras-de-negocio.md#os-ov--versões-do-orçamento-e-registro-do-aceite--12112026).
+
+## Cadeia do assinante com âncora explícita — 10/11/2026
+
+`verifyNfseCandidateSignature(raw, trustPolicy?)` aceita um segundo argumento exclusivo do futuro coordenador do servidor: `{rootCertificatePem, intermediateCertificatesPem}`. A lista contém até quatro intermediárias em ordem folha→raiz e exclui folha/raiz. Nunca preencher esse contexto a partir de formulário, payload ou KeyInfo. Nenhuma raiz real foi instalada nem existe configuração de usuário final para esse contrato interno.
+
+Sem contexto, preserva conferência matemática e `trustChainVerified:false`; contexto presente inválido gera `NFSE_CERTIFICATE_CHAIN_INVALID`, sem downgrade. `nfse-signer-chain.ts` valida caminho linear, assinaturas, raiz autoassinada, datas explícitas, RSA2048–8192/SHA256–512, usos de folha/CA, pathLen e limites. Recusa certificados/extensões duplicados, restrições não suportadas e extensões críticas desconhecidas. Não consulta rede, repositório do sistema ou revogação, nem descobre caminhos alternativos.
+
+Sucesso acrescenta fingerprint da raiz, tamanho da cadeia e `trustChainVerified:true` somente para a âncora configurada. Não confirma identidade SEFIN, política integral ICP-Brasil, revogação, perfil/contrato, autorização ou prontidão. Essas flags permanecem false. Sem integração a rota, custódia, diário ou transporte.93/93 testes backend e repetição dos mesmos40 cenários contra `dist`, tipos/build/seis checks aprovados. [Contrato, TDD e limites NFSD-CA](../docs/08-etapa-fiscal-e-proximos-passos.md#nfsd-ca--cadeia-do-assinante-configurada-no-servidor--10112026).
+
+## Conferência criptográfica de candidata NFS-e — 10/11/2026
+
+`verifyNfseCandidateSignature` recebe os mesmos campos da inspeção mais `expectedSignerCertificatePem` (um certificado público esperado, fornecido separadamente) e `at` (Date explícita do coordenador). Não aceitar esses campos diretamente de um formulário de emissão nem copiar o certificado do KeyInfo para preencher a expectativa. O certificado do assinante da resposta não é o A1 da loja por inferência.
+
+Confere estrutura/correlação, DER do assinante, RSA2048–8192, não CA e período finito de validade. Depois verifica SHA256 de infNFSe inteiro, incluindo assinatura interna, e RSA-SHA256 sobre SignedInfo/C14N1.0, com transformações/referência fechadas. Metadados retornam `candidate_signature_verified`, `signatureVerified:true`, `certificateMatched:true` e fingerprint somente quando os dois conferem. Sem o contexto explícito de cadeia descrito acima, `trustChainVerified` continua false. Perfil oficial, revogação, contrato, autorização e prontidão permanecem false também com cadeia válida. Não é verificação institucional completa nem compatibilidade comprovada com SEFIN.
+
+`nfse-xml-signature.ts` compartilha a leitura restrita de XMLDSig com DPS; códigos e regras específicas do DPS são preservados. Datas de certificado não finitas agora são recusadas nos dois verificadores. Inspeção simples continua entrada separada, sem confirmar assinatura. Sem I/O fiscal, banco, PFX, custódia, rota, tela ou mudança de estado. [Critérios, testes e limites NFSD-SV](../docs/08-etapa-fiscal-e-proximos-passos.md#nfsd-sv--verificação-criptográfica-da-resposta--10112026).
+
+## Inspeção estrutural de resposta NFS-e — 10/11/2026
+
+`inspectNfseCandidate` em `nfse-response-validation.ts` recebe `{expectedDpsXml,nfseXmlGZipB64,expectedAccessKey?}` de futuro coordenador interno. Fonte esperada deve vir da assinatura já persistida. Base64 limitado a512KiB, gzip com saída limitada a512KiB, UTF-8/XML seguros, XSD oficial1.01 fixado e correspondência da DPS completa por canonicalização exclusiva sem comentários. Emitente e chave opcional também são conferidos; IDs duplicados/aliases, assinatura estrutural ausente, Object e referências externas falham. Não há inferência de autorização por HTTP/cStat.
+
+Retorno contém somente hashes/metadados e `candidate_correlated`. `signatureVerified`, `trustChainVerified`, `contractConfirmed`, `officialAuthorization` e `readyForSubmission` permanecem false. Assinatura no XSD é estrutural: não verifica criptografia, cadeia, revogação, cálculo tributário ou situação fiscal. Não retorna XML/tomador/certificado. Sem rede, banco, custódia, simulação, rota ou novo botão; não muda o diário para nota autorizada.
+
+Loader/hash/resolver agora são compartilhados em `nfse-xml-schema.ts`, com os cinco XSD originais do pacote público de20/10/2026. Guards/códigos de erro DPS continuam preservados. Não criar whitelist concorrente no resolver global. [Contrato e evidências NFSD-RX](../docs/08-etapa-fiscal-e-proximos-passos.md#nfsd-rx--inspeção-de-xml-recebido--10112026).
+
+Após build, `SISTEM_QA_COMPILED_RESPONSE=true` somente no processo de teste repete os15 cenários de `test/nfse-response-validation.test.ts` contra `dist`; não é flag de emissão ou configuração de produção. Rodada backend com regressões68/68 e repetição compilada15/15 aprovadas. Não comprova aceite autenticado do órgão.
+
+## Diário interno de tentativa fiscal — 09/11/2026
+
+`nfse-dps-submission-journal.ts` prepara o controle durável de futura transmissão restrita, sem chamar rede/custódia e sem rota pública. `startDpsSubmission` recebe somente `{requestId,signatureId}` de assinatura já persistida: primeira reserva tem `claimed:true`; replay/equivalência têm false. Isso não concede autorização para envio (`readyForSubmission:false`, `officialAuthorization:false`). Existe uma única tentativa por DPS/assinatura, sem rearmar após falha.
+
+`recordDpsSubmissionOutcome` recebe `{requestId,attemptId,version,phase,outcome}`. Envio (`phase:submission`) parte de `dispatch_reserved` para `result_unknown` ou `response_unverified`; esta última exige `httpStatus` e `responseSha256`, sem corpo/XML. Consulta (`phase:lookup`) só pode levar desconhecido para resposta não verificada; sua falha preserva desconhecido. Nenhum código HTTP prova aceite fiscal. `recoverExpiredDpsSubmission({requestId,attemptId,version})` recupera reserva após dois minutos pelo relógio do banco, sem novo envio/número. Prazo habilita recuperação explícita; recibo recebido antes dela ainda pode ser guardado como não verificado, mesmo após o prazo. Depois dela, versão antiga conflita. `getDpsSubmission` lê metadados/eventos sem mutação ou material privado.
+
+O futuro coordenador deve validar autorização atual e todos os bloqueios fiscais antes de usar o serviço. Migração incremental `tenant_012` mantém tentativa/pedidos/eventos separados do simulador e dos documentos autorizados; eventos/pedidos são imutáveis. Rodar esta migração não habilita emissão. [Escopo/testes/limites NFSD-JT](../docs/08-etapa-fiscal-e-proximos-passos.md#nfsd-jt--diário-de-tentativa-e-recuperação--09112026). Nenhuma migração remota foi aplicada nesta etapa.
+
+## Simulador fiscal conectado — 09/11/2026
+
+`FISCAL_SIMULATOR_ENABLED=true` habilita somente o simulador local. Ausente/false mantém comandos desativados; outros valores falham na configuração. Exige `fiscal.simulate` com leitura fiscal/OS; gestores podem conceder o direito explicitamente aos funcionários. Nenhum CNPJ/A1 ou serviço externo é necessário, e a flag não habilita emissão oficial.
+
+Sob `/api/v1/tenants/:tenantId/fiscal/simulations`: GET `/config`, GET `?orderId=UUID&limit=25&offset=0`, GET `/:id`, POST com `{requestId,orderId,orderVersion,scenario}` e POST `/:id/reconcile` com `{requestId,version}`. Cenários: `accepted`, `rejected`, `unknown_after_accept`. OS precisa ter serviço aprovado/valor positivo; valor/cliente vêm do banco. Retorno sempre indica `environment:simulation`, `provider:local_simulator`, `officialAuthorization:false` e referência `SIM-`. Snapshot não muda com a OS; pedidos equivalentes recuperam o registro, sem nova nota ou efeitos operacionais. Histórico de eventos/auditoria e chaves por ator/comando/conteúdo são transacionais.
+
+Migração incremental `tenant_011` adiciona três tabelas próprias de simulação, sem converter DPS, estoque ou financeiro. Aplicada nesta etapa somente aos bancos genéricos de teste. Não execute migrações remotas por inferência deste guia. Após build, `node --import tsx test/fiscal-simulation-browser-smoke.ts --run`, em server, usa Chrome, Better Auth e PostgreSQL genérico isolado na porta4000. [Contrato e evidências SIM-NFSE](../docs/08-etapa-fiscal-e-proximos-passos.md#sim-nfse--fluxo-de-testes-conectado--09112026).
+
+## Transporte fiscal e prontidão — 09/11/2026
+
+GET `/api/v1/tenants/:tenantId/fiscal/readiness` exige `fiscal.read` e vínculo da empresa, sem parâmetros extras ou mutação. Retorna ambiente restrito, `readyForSubmission:false`, configuração apta ao recorte de preparação (`setup.profileComplete`), presença/validade local por emitente do A1 e armazenamento configurado, sem material privado. É orientação de cadastro, não validação ICP-Brasil ou autorização fiscal. O painel consulta ao abrir/retentar e mantém envio indisponível.
+
+`NfseNationalTestClient` é protótipo interno: host fixo de homologação, GET de DPS/nota e POST de XML estruturalmente assinado comprimido em gzip/base64. Envelope candidato ainda não confirmado no Swagger. Retorno tem `contractConfirmed:false` e `authorizationConfirmed:false`; HTTP400/422 não é classificado automaticamente como rejeição fiscal, falha de POST é inconclusiva, sem retry. Fachada `NfseNationalReadClient` continua só leitura; `instanceof`/códigos foram preservados por alias, mas o nome interno do erro passou a `NfseNationalTransportError`. Nenhuma rota/custódia chama o protótipo de envio. Journal/reconciliação e validações oficiais precisam preceder essa conexão. Sem publicação, transmissão autenticada ou migração. [Critérios e evidências](../docs/08-etapa-fiscal-e-proximos-passos.md#nfsd-tr--transporte-e-pendências-de-emissão--09112026).
+
+Depois do build e com porta4000 livre, `node --import tsx test/nfse-readiness-browser-smoke.ts --run` verifica o painel compilado com Better Auth e PostgreSQL genérico isolado; não emite nota nem acessa banco remoto.
+
+## Entrada mínima da OS — 09/11/2026
+
+`order.create` exige cliente ativo, equipamento e solicitação; `technicianId`/`due` omitidos ou null ficam explicitamente null, assim como `technicianName` sem atribuição. `order.update` omitido preserva; null limpa previsão em qualquer etapa editável e técnico somente em `received`. Previsão é opcional, nunca vencimento financeiro. Valores antigos não são migrados.
+
+`order.advance` exige técnico e aceita `technicianId` válido somente em `received`, para atribuir/iniciar diagnóstico em um comando/versão/auditoria. Nesse caso exige `orders.update` e `orders.advance`, inclusive replay; falha reverte o conjunto. A UI usa o editor existente com uma seleção/uma confirmação. Relatório admite nome null só com ID null em `received|closed_without_repair`, mostra pendência e exporta nome vazio. Comprovante mostra **Técnico a definir**/**Sem previsão**, sem nome do usuário ou data automática. Smoke compilado existente também verifica recebimento mínimo e início conjunto com login/banco genérico. [Contrato OS-EN](../docs/16-regras-de-negocio.md#os-en--entrada-sem-técnico-ou-previsão--09112026). Sem migração, dependência ou publicação.
+
+## Orçamento pendente da OS — 09/11/2026
+
+`order.create` aceita `laborCents:null` ou propriedade omitida para valor ainda não definido; zero continua gratuito. `order.update` omitido preserva e null explícito limpa somente proposta não aprovada. Aprovação/início exigem valor definido; acordo exige valor positivo. Permissões, versão, tentativa e auditoria continuam no comando existente. Sem migração de valores antigos. Recibo mantém null; relatório/CSV somam definidos e informam `totals.unpricedCount` de toda a seleção, com null preservado nos itens. Campo monetário ausente/malformado no banco e null aprovado continuam inconsistências, sem falso zero. [Contrato e evidências OS-OP](../docs/16-regras-de-negocio.md#os-op--orçamento-pendente-e-serviço-gratuito--09112026).
+
+O smoke compilado de devolução abaixo também ensaia pendente→zero→aprovação/início sem acordo, recebimento ou estoque. Usa apenas fixture genérica isolada e exige `--run`; não acessa ambiente remoto.
+
+## Devolução de OS sem reparo — 08/11/2026
+
+POST `/api/v1/tenants/:tenantId/operations/commands`, `type: "order.return_without_repair"`, com direito `orders.deliver` e formato `{requestId,type,data:{id,version,reason,details?,recipient,confirmed:true}}`. `reason`: `estimate_declined|repair_unavailable|customer_withdrew|other`; detalhe obrigatório para `other` (até500 caracteres). `recipient:{type:"customer"}` reutiliza o nome da OS no servidor; `{type:"other",name,authorization}` exige nome (até120) e autorização (até500), sem CPF/senha. Autor e instante nunca vêm do payload.
+
+Elegível somente em `received|diagnosing|awaiting_approval`, `approved=false`, `tested=false` e sem acordo. Após conferência e confirmação, estado terminal `closed_without_repair`, com `returnWithoutRepair {reason,details,recipientType,recipientName,authorization,at,actorId,actorName}`. Não edita o orçamento, não aprova/testa nem modifica financeiro, estoque ou fiscal. Não cancela serviço aprovado/iniciado, não modela diagnóstico pago ou reembolso. Esses casos continuam pendentes.
+
+Mesma tentativa/conteúdo recupera o resultado com direitos atuais; mudança conflita. Versão/concorrência e auditoria usam a transação operacional existente. Depois de encerrada não aceita editar/avançar/entregar reparo ou nova devolução. Auditoria guarda etapa/motivo/tipo de retirante, sem duplicar os textos de autorização; a OS autorizada preserva o registro completo. Listagem/relatório aceitam a etapa; comprovante inclui motivo/retirante e identifica preço como proposta não executada. Sem migração/dependência nova.
+
+`node --import tsx test/order-return-browser-smoke.ts --run`, após build com porta4000 livre, ensaia Chrome→aplicação compilada→PostgreSQL genérico isolado, sem dados reais. [Critérios/evidências OS-SR](../docs/16-regras-de-negocio.md#os-sr--devolução-sem-reparo-recorte-de-implementação).
+
+## Relatório de ordens de serviço conectado — 08/11/2026
+
+Opção **Ordens de serviço** em `/relatorios/`. GET `/api/v1/tenants/:tenantId/reports/orders?from=AAAA-MM-DD&to=AAAA-MM-DD&q=...&stage=all&approval=all&limit=25&offset=0` exige sessão, `finance.read`, `orders.read` e vínculo físico do banco. Datas selecionam a criação inclusiva em São Paulo. Busca literal pelo cliente registrado na OS; `stage=all|received|diagnosing|awaiting_approval|in_progress|quality_check|ready_for_pickup|delivered` e `approval=all|approved|pending`. `pending` inclui qualquer OS sem aprovação, não apenas a etapa aguardando aprovação.
+
+Uma linha por OS, com técnico/equipamento/etapa/aprovação e mão de obra **atuais registrados na ordem**, sem consultar cadastros atuais ou juntar parcelas/pagamentos. Totais integrais `{count,laborCents,approvedCents,unapprovedCents}`; valores não representam recebido, dívida, peças, caixa ou nota. Entrada antiga não torna o relatório um histórico de orçamento/etapas. Projeção explícita não retorna defeito, diagnóstico, senha ou contato. Inconsistência em toda a seleção (inclusive fora da página) ou soma insegura retorna503, sem fabricar zero.
+
+GET `/api/v1/tenants/:tenantId/reports/orders/export` aceita os mesmos filtros sem `limit/offset`, com seleção integral até 10 mil OS e413 em excesso. Transação consistente somente leitura, CSV seguro e controlador existente, sem migração/dependência nova. Ensaio explícito de relatórios compilados ampliado para os quatro tipos em PostgreSQL genérico isolado. [Critérios, evidências e limites](../docs/12-logs-e-relatorios.md#rel-os--ordens-de-serviço-conectadas--08112026).
+
+## Relatório de vendas conectado — 07/11/2026
+
+Opção **Vendas** na mesma página `/relatorios/`, sem migração ou dependência nova. GET `/api/v1/tenants/:tenantId/reports/sales?from=AAAA-MM-DD&to=AAAA-MM-DD&q=...&status=all&limit=25&offset=0` exige sessão, `finance.read`, `sales.read` e vínculo físico do banco. Período inclusivo pela criação em São Paulo; busca literal pelo nome preservado na venda; `status=all|confirmed|delivered` corresponde à situação atual, sem reconstruir o estado histórico de entrega. Não junta pagamentos/parcelas/produtos: uma linha por venda, usando os valores comerciais preservados, sem preços ou nomes atuais.
+
+Resposta `tenantId`, filtros aplicados, `generatedAt`, página e `totals {count,grossCents,discountCents,totalCents}` da seleção inteira. Inconsistência/decomposição parcial, negativo ou overflow retorna503. O contrato anterior aos descontos, com ambos os campos de decomposição ausentes, é lido como bruto=total e desconto=0; não modifica registros. GET `/api/v1/tenants/:tenantId/reports/sales/export` aceita os mesmos filtros sem paginação e lê toda a seleção até 10 mil vendas; excesso retorna413. Transação consistente somente leitura, CSV seguro no navegador e situação atual identificada. Não representa recebido, caixa, lucro ou nota fiscal. O ensaio explícito de relatórios compilados também cobre vários produtos, descontos e pagamento parcial. [Critérios, evidências e limites](../docs/12-logs-e-relatorios.md#rel-ven--vendas-conectadas--07112026).
+
 ## Relatório de parcelas na data-base — 06/11/2026
 
 Disponível localmente em `/relatorios/`, opção **Parcelas**, sem nova migração ou dependência. GET `/api/v1/tenants/:tenantId/reports/installments?from=AAAA-MM-DD&to=AAAA-MM-DD&asOf=AAAA-MM-DD&q=...&status=all&limit=25&offset=0` exige `finance.read` e vínculo físico do banco. `from/to` selecionam vencimentos inclusivos; `asOf` limita criação do acordo/parcela e pagamentos ao fim do dia civil de São Paulo. Busca literal pelo nome histórico no acordo; `status` aceita `all|open|overdue|paid`. `open` inclui todos os saldos positivos (também vencidos), consistente com a consulta financeira existente. Vencida exige vencimento anterior à base; vencimento no próprio dia permanece em aberto. O saldo de hoje não substitui a reconstrução pela data-base.

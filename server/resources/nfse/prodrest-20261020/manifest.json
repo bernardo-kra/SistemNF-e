@@ -8,6 +8,7 @@
     "DPS_v1.01.xsd": "fe45e5250a48e519aba89fc6a472863b8e602ed957778fb64692804933a00d0c",
     "tiposComplexos_v1.01.xsd": "4f66f7c15bd3b05b3a16cbe5fa671b90c10e4c9c74276038730be1c8c794b721",
     "tiposSimples_v1.01.xsd": "562e326724f85cd7c41176d35e67c542376784d4c950ec1719704d480a8af226",
-    "xmldsig-core-schema.xsd": "8c9792a056aedcadfc95bf16f2d7448a35da40df71533e20aea37d0329980c48"
+    "xmldsig-core-schema.xsd": "8c9792a056aedcadfc95bf16f2d7448a35da40df71533e20aea37d0329980c48",
+    "NFSe_v1.01.xsd": "af0bd2d8c50acba3d9c3f3f515426eca083b3f66e3211ce8dd48a7cf101818b8"
   }
 }

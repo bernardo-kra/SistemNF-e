@@ -10,6 +10,7 @@ export type ApiConfig = {
   controlDatabaseUrl: string;
   tenantDatabaseUrls: Record<string, string>;
   a1KeyringFile?: string;
+  fiscalSimulatorEnabled?: boolean;
 };
 
 export function readConfig(env: NodeJS.ProcessEnv): ApiConfig {
@@ -60,8 +61,11 @@ export function readConfig(env: NodeJS.ProcessEnv): ApiConfig {
     tenantDatabaseUrls[key] = databaseUrl(value);
   }
   const a1KeyringFile = env.NFS_E_A1_KEYRING_FILE;
+  const simulator = env.FISCAL_SIMULATOR_ENABLED;
+  if (simulator !== undefined && !["true", "false"].includes(simulator)) throw new Error("Configuração do simulador fiscal inválida.");
   if (a1KeyringFile !== undefined && (!a1KeyringFile || !isAbsolute(a1KeyringFile))) throw new Error("Caminho protegido do A1 inválido.");
   return { nodeEnv: nodeEnv as ApiConfig["nodeEnv"], host, port, baseUrl: origin("API_BASE_URL"),
     frontendOrigin: origin("FRONTEND_ORIGIN"), authSecret, controlDatabaseUrl, tenantDatabaseUrls,
-    ...(a1KeyringFile === undefined ? {} : { a1KeyringFile }) };
+    ...(a1KeyringFile === undefined ? {} : { a1KeyringFile }),
+    ...(simulator === undefined ? {} : { fiscalSimulatorEnabled: simulator === "true" }) };
 }

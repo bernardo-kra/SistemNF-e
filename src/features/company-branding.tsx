@@ -1,9 +1,11 @@
 "use client";
+import { orderApprovalChannels } from "../../shared/order-budget.mjs";
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { Field } from "@/components/ui";
-import { accessRequest, AccessError } from "@/lib/access-api";
+import { accessRequest, accessDate, AccessError } from "@/lib/access-api";
 import { brandingAssetUrl, brandingBase, checkedBranding, decodedImage, readBranding, type Branding, type ReceiptOrder } from "@/lib/branding-api";
-import { money, stages, type Stage } from "@/lib/domain";
+import { money, connectedStages as stages, type ConnectedStage as Stage } from "@/lib/domain";
+import { orderReturnReasons } from "../../shared/order-return.mjs";
 import { useWorkspace } from "./workspace-session";
 import { Building2 } from "lucide-react";
 import styles from "./company-branding.module.css";
@@ -95,10 +97,12 @@ export function BrandPaper({ companyName, logoSrc, backgroundSrc, backgroundOpac
   return <section className={`receipt-paper ${styles.paper} ${preview ? styles.preview : ""}`} role="region" aria-label={preview ? "Prévia da ordem de serviço" : "Comprovante da ordem de serviço"}>
     {backgroundSrc && <img className={styles.watermark} style={{ opacity: Math.max(0, Math.min(20, backgroundOpacity)) / 100 }} src={backgroundSrc} alt="" aria-hidden="true" data-testid="order-watermark" />}
     <div className={styles.content}><header className="receipt-heading"><div>{logoSrc && <img className={styles.logo} src={logoSrc} alt="Logotipo da loja" />}<strong>{companyName}</strong><p>Assistência técnica</p></div><div><h2>{order ? `OS #${order.number}` : "Ordem de serviço"}</h2><p>{order ? stages[order.stage as Stage]?.label ?? order.stage : "Prévia do comprovante"}</p></div></header>
-      <dl className="receipt-fields"><div><dt>Cliente</dt><dd>{order?.customerName ?? "Dados do atendimento"}</dd></div><div><dt>Contato</dt><dd>{order?.customerPhone || "Informado na OS"}</dd></div><div><dt>Equipamento / modelo</dt><dd>{order?.equipment ?? "Equipamento registrado"}</dd></div><div><dt>Técnico responsável</dt><dd>{order?.technicianName ?? "Responsável registrado"}</dd></div>{order && <><div><dt>Recebido em</dt><dd>{displayDate(order.createdAt)}</dd></div><div><dt>Previsão</dt><dd>{displayDate(order.due)}</dd></div></>}</dl>
+      <dl className="receipt-fields"><div><dt>Cliente</dt><dd>{order?.customerName ?? "Dados do atendimento"}</dd></div><div><dt>Contato</dt><dd>{order?.customerPhone || "Informado na OS"}</dd></div><div><dt>Equipamento / modelo</dt><dd>{order?.equipment ?? "Equipamento registrado"}</dd></div><div><dt>Técnico responsável</dt><dd>{order ? order.technicianName ?? "Técnico a definir" : "Responsável registrado"}</dd></div>{order && <><div><dt>Recebido em</dt><dd>{displayDate(order.createdAt)}</dd></div><div><dt>Previsão</dt><dd>{order.due ? displayDate(order.due) : "Sem previsão"}</dd></div></>}</dl>
       <div className="receipt-section"><h3>Solicitação do cliente</h3><p>{order?.issue ?? "O serviço solicitado será exibido aqui."}</p></div>
-      {(order?.diagnosis || preview) && <div className="receipt-section"><h3>Diagnóstico / serviço proposto</h3><p>{order?.diagnosis || "O diagnóstico registrado será exibido aqui."}</p></div>}
-      <div className="receipt-section"><h3>{order?.approved ? "Valor do serviço aprovado" : "Valor do serviço / aprovação pendente"}</h3><p>{order ? money(order.laborCents) : "Valor registrado na OS"}</p><p className={styles.help}>Peças e materiais não estão incluídos neste comprovante.</p></div>
+      {(order?.diagnosis || preview) && <div className="receipt-section"><h3>Diagnóstico técnico</h3><p>{order?.diagnosis || "O diagnóstico registrado será exibido aqui."}</p></div>}
+      {order?.budgetScope && <div className="receipt-section"><h3>Serviço proposto · Orçamento {order.budgetRevision}</h3><p>{order.budgetScope}</p>{order.budgetApproval && <p className={styles.help}>Canal informado: {orderApprovalChannels[order.budgetApproval.channel]} · autorização registrada por {order.budgetApproval.actorName} em {accessDate(order.budgetApproval.at)}. Registro do atendimento, sem assinatura digital do cliente.</p>}</div>}
+      <div className="receipt-section"><h3>{order && order.laborCents == null ? "Orçamento ainda não definido" : order?.stage === "closed_without_repair" ? "Valor proposto (serviço não executado)" : order?.approved ? "Valor do serviço aprovado" : "Valor do serviço / aprovação pendente"}</h3><p>{order ? order.laborCents == null ? "Valor a definir" : money(order.laborCents) : "Valor registrado na OS"}</p><p className={styles.help}>Peças e materiais não estão incluídos neste comprovante.</p></div>
+      {order?.returnWithoutRepair && <div className="receipt-section"><h3>Devolução sem reparo</h3><p>{orderReturnReasons[order.returnWithoutRepair.reason]}</p>{order.returnWithoutRepair.details && <p>{order.returnWithoutRepair.details}</p>}<p>Retirado por: {order.returnWithoutRepair.recipientName} · {accessDate(order.returnWithoutRepair.at)}</p><p>Registrado por: {order.returnWithoutRepair.actorName}</p>{order.returnWithoutRepair.authorization && <p>Autorização da retirada: {order.returnWithoutRepair.authorization}</p>}</div>}
       {order && <div className={styles.reference}>Referência da OS: {order.id}</div>}
       <footer className={styles.paperFooter}><p>Comprovante de atendimento. Não é documento fiscal nem comprovante de pagamento.</p>{generatedAt && <p>Comprovante gerado em {new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo" }).format(new Date(generatedAt))}. A situação atual permanece disponível no sistema.</p>}<p>A retirada depende da conferência do cliente ou pessoa autorizada e do equipamento.</p></footer>
     </div>

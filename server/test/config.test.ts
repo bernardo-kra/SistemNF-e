@@ -13,6 +13,13 @@ const valid = () => ({
   TENANT_DATABASE_URLS: JSON.stringify({ a: "postgresql://qa_a:private@127.0.0.1:5432/tenant_a" }),
 });
 
+test("CFG-05 simulador exige ativação explícita e rejeita valores ambíguos", () => {
+  assert.notEqual(readConfig(valid()).fiscalSimulatorEnabled, true);
+  assert.equal(readConfig({ ...valid(), FISCAL_SIMULATOR_ENABLED: "false" }).fiscalSimulatorEnabled, false);
+  assert.equal(readConfig({ ...valid(), FISCAL_SIMULATOR_ENABLED: "true" }).fiscalSimulatorEnabled, true);
+  for (const flag of ["", "1", "yes", "TRUE", " true "]) assert.throws(() => readConfig({ ...valid(), FISCAL_SIMULATOR_ENABLED: flag }));
+});
+
 test("CFG-01 configuração explícita preserva mapa interno sem inventar credenciais", () => {
   const config = readConfig(valid());
   assert.equal(config.nodeEnv, "test");

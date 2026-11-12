@@ -12,13 +12,16 @@ import { executeOperation, listOperations, operationHistory, purchasePlan, comma
 import { readFinance } from "./finance.js";
 import { readReceiptReport } from "./receipt-reports.js";
 import { readInstallmentReport } from "./installment-reports.js";
+import { readSaleReport } from "./sale-reports.js";
+import { readOrderReport } from "./order-reports.js";
 import { registerFrontend } from "./web-host.js";
 import { operationalPoolOptions } from "./operational-pool.js";
 import { createAdministrationService } from "./administration.js";
 import { brandingAsset, orderReceipt, readBranding, saveBranding } from "./branding.js";
-import { findFiscalOrderDraft, prepareFiscalOrder, readFiscalRecord, saveFiscalRecord } from "./fiscal-profile.js";
+import { findFiscalOrderDraft, prepareFiscalOrder, readFiscalReadiness, readFiscalRecord, saveFiscalRecord } from "./fiscal-profile.js";
 import { getDpsRequest, readDpsHistory } from "./nfse-dps-journal.js";
 import { registerA1CertificateRoutes } from "./nfse-a1-routes.js";
+import { startFiscalSimulation, reconcileFiscalSimulation, getFiscalSimulation, listFiscalSimulations, fiscalSimulationConfig } from "./fiscal-simulation.js";
 
 export type BuildOptions = { config: ApiConfig; controlPool: Pool; logger?: FastifyServerOptions["logger"]; frontendRoot?: string };
 
@@ -214,6 +217,34 @@ export async function buildApp(options: BuildOptions): Promise<FastifyInstance> 
 
   type TenantParams = { tenantId: string };
   const fiscalBase = "/api/v1/tenants/:tenantId/fiscal";
+  const simulations = `${fiscalBase}/simulations`;
+  app.get<{ Params: TenantParams }>(`${simulations}/config`, async request => {
+    const access = await authorize(request, request.params.tenantId, "fiscal.simulate"); allowedKeys(inputRecord(request.query), []);
+    return fiscalSimulationConfig(access, config.fiscalSimulatorEnabled === true);
+  });
+  app.get<{ Params: TenantParams }>(simulations, async request => {
+    const access = await authorize(request, request.params.tenantId, "fiscal.simulate");
+    return listFiscalSimulations(access, request.query);
+  });
+  app.get<{ Params: TenantParams & { id: string } }>(`${simulations}/:id`, async request => {
+    const access = await authorize(request, request.params.tenantId, "fiscal.simulate"); allowedKeys(inputRecord(request.query), []);
+    return { document: await getFiscalSimulation(access, request.params.id) };
+  });
+  app.post<{ Params: TenantParams }>(simulations, async request => {
+    const access = await authorize(request, request.params.tenantId, "fiscal.simulate"); allowedKeys(inputRecord(request.query), []);
+    if (config.fiscalSimulatorEnabled !== true) throw new ApiError(503, "FISCAL_SIMULATOR_DISABLED", "O simulador não está ativado neste ambiente.");
+    return { document: await startFiscalSimulation(access, request.body) };
+  });
+  app.post<{ Params: TenantParams & { id: string } }>(`${simulations}/:id/reconcile`, async request => {
+    const access = await authorize(request, request.params.tenantId, "fiscal.simulate"); allowedKeys(inputRecord(request.query), []);
+    if (config.fiscalSimulatorEnabled !== true) throw new ApiError(503, "FISCAL_SIMULATOR_DISABLED", "O simulador não está ativado neste ambiente.");
+    return { document: await reconcileFiscalSimulation(access, request.params.id, request.body) };
+  });
+  app.get<{ Params: TenantParams }>(`${fiscalBase}/readiness`, async request => {
+    const access = await authorize(request, request.params.tenantId, "fiscal.read");
+    allowedKeys(inputRecord(request.query), []);
+    return readFiscalReadiness(access, Boolean(config.a1KeyringFile));
+  });
   app.get<{ Params: TenantParams }>(`${fiscalBase}/profile`, async request => {
     const access=await authorize(request,request.params.tenantId,"fiscal.read");allowedKeys(inputRecord(request.query),[]);
     return {tenantId:access.tenantId,profile:await readFiscalRecord(access,"profile")};
@@ -306,6 +337,22 @@ export async function buildApp(options: BuildOptions): Promise<FastifyInstance> 
   app.get<{ Params: TenantParams }>("/api/v1/tenants/:tenantId/reports/installments/export", async request => {
     const access = await authorize(request, request.params.tenantId, "finance.read");
     return readInstallmentReport(access, request.query, true);
+  });
+  app.get<{ Params: TenantParams }>("/api/v1/tenants/:tenantId/reports/sales", async request => {
+    const access = await authorize(request, request.params.tenantId, "finance.read");
+    return readSaleReport(access, request.query);
+  });
+  app.get<{ Params: TenantParams }>("/api/v1/tenants/:tenantId/reports/sales/export", async request => {
+    const access = await authorize(request, request.params.tenantId, "finance.read");
+    return readSaleReport(access, request.query, true);
+  });
+  app.get<{ Params: TenantParams }>("/api/v1/tenants/:tenantId/reports/orders", async request => {
+    const access = await authorize(request, request.params.tenantId, "finance.read");
+    return readOrderReport(access, request.query);
+  });
+  app.get<{ Params: TenantParams }>("/api/v1/tenants/:tenantId/reports/orders/export", async request => {
+    const access = await authorize(request, request.params.tenantId, "finance.read");
+    return readOrderReport(access, request.query, true);
   });
   const operationsBase = "/api/v1/tenants/:tenantId/operations";
   app.post<{ Params: TenantParams }>(`${operationsBase}/commands`, { bodyLimit: 2 * 1024 * 1024 }, async (request) => {

@@ -339,4 +339,70 @@ export async function migrateTenant(pool: Pool): Promise<void> {
     CREATE TRIGGER nfse_dps_signatures_immutable BEFORE UPDATE OR DELETE ON nfse_dps_signatures FOR EACH ROW EXECUTE FUNCTION prevent_audit_changes();
     CREATE TRIGGER nfse_dps_signature_requests_immutable BEFORE UPDATE OR DELETE ON nfse_dps_signature_requests FOR EACH ROW EXECUTE FUNCTION prevent_audit_changes();
   `, "tenant_010");
+  await migrate(pool, "tenant", `
+    CREATE TABLE fiscal_simulations (
+      id uuid PRIMARY KEY,tenant_id uuid NOT NULL,reference text NOT NULL UNIQUE CHECK(reference LIKE 'SIM-%'),
+      environment text NOT NULL DEFAULT 'simulation' CHECK(environment='simulation'),
+      provider text NOT NULL DEFAULT 'local_simulator' CHECK(provider='local_simulator'),
+      model text NOT NULL DEFAULT 'NFS-e' CHECK(model='NFS-e'),
+      source_type text NOT NULL DEFAULT 'order' CHECK(source_type='order'),source_id uuid NOT NULL,
+      source_version integer NOT NULL CHECK(source_version>0),snapshot jsonb NOT NULL CHECK(jsonb_typeof(snapshot)='object' AND octet_length(snapshot::text)<=8192),
+      scenario text NOT NULL CHECK(scenario IN ('accepted','rejected','unknown_after_accept')),
+      state text NOT NULL CHECK(state IN ('simulated_accepted','simulated_rejected','simulated_unknown')),
+      version integer NOT NULL CHECK(version BETWEEN 1 AND 2),created_by text NOT NULL,updated_by text NOT NULL,
+      created_at timestamptz NOT NULL,updated_at timestamptz NOT NULL,
+      UNIQUE(tenant_id,id),UNIQUE(tenant_id,source_id,source_version,scenario),
+      FOREIGN KEY(source_type,source_id) REFERENCES operational_records(entity_type,id)
+    );
+    CREATE TABLE fiscal_simulation_requests (
+      id uuid PRIMARY KEY,tenant_id uuid NOT NULL,actor_id text NOT NULL,
+      command text NOT NULL CHECK(command IN ('start','reconcile')),fingerprint text NOT NULL CHECK(fingerprint ~ '^[a-f0-9]{64}$'),
+      simulation_id uuid NOT NULL,at timestamptz NOT NULL DEFAULT clock_timestamp(),
+      FOREIGN KEY(tenant_id,simulation_id) REFERENCES fiscal_simulations(tenant_id,id)
+    );
+    CREATE TABLE fiscal_simulation_events (
+      tenant_id uuid NOT NULL,simulation_id uuid NOT NULL,version integer NOT NULL CHECK(version BETWEEN 1 AND 2),
+      kind text NOT NULL CHECK(kind IN ('created','reconciled')),actor_id text NOT NULL,actor_name text NOT NULL,at timestamptz NOT NULL,
+      PRIMARY KEY(simulation_id,version),FOREIGN KEY(tenant_id,simulation_id) REFERENCES fiscal_simulations(tenant_id,id)
+    );
+    CREATE TRIGGER fiscal_simulations_permanent BEFORE DELETE ON fiscal_simulations FOR EACH ROW EXECUTE FUNCTION prevent_audit_changes();
+    CREATE TRIGGER fiscal_simulation_requests_immutable BEFORE UPDATE OR DELETE ON fiscal_simulation_requests FOR EACH ROW EXECUTE FUNCTION prevent_audit_changes();
+    CREATE TRIGGER fiscal_simulation_events_immutable BEFORE UPDATE OR DELETE ON fiscal_simulation_events FOR EACH ROW EXECUTE FUNCTION prevent_audit_changes();
+  `, "tenant_011");
+  await migrate(pool, "tenant", `
+    ALTER TABLE nfse_dps_signatures ADD CONSTRAINT nfse_dps_signatures_submission_source UNIQUE(tenant_id,id,draft_id);
+    CREATE TABLE nfse_dps_submission_attempts (
+      id uuid PRIMARY KEY,tenant_id uuid NOT NULL,signature_id uuid NOT NULL UNIQUE,draft_id uuid NOT NULL UNIQUE,
+      environment text NOT NULL DEFAULT 'production-restricted' CHECK(environment='production-restricted'),
+      dps_id text NOT NULL,xml_sha256 text NOT NULL CHECK(xml_sha256 ~ '^[a-f0-9]{64}$'),
+      state text NOT NULL CHECK(state IN ('dispatch_reserved','result_unknown','response_unverified')),
+      version integer NOT NULL CHECK(version BETWEEN 1 AND 3),
+      reason text NOT NULL CHECK(reason IN ('reserved','transport_failure','deadline_elapsed','receipt_received')),
+      http_status integer CHECK(http_status BETWEEN 200 AND 599),response_sha256 text CHECK(response_sha256 ~ '^[a-f0-9]{64}$'),
+      created_by text NOT NULL,updated_by text NOT NULL,created_at timestamptz NOT NULL CHECK(isfinite(created_at)),
+      updated_at timestamptz NOT NULL CHECK(isfinite(updated_at) AND updated_at>=created_at),
+      expires_at timestamptz NOT NULL CHECK(isfinite(expires_at) AND expires_at>created_at),
+      UNIQUE(tenant_id,id),FOREIGN KEY(tenant_id,signature_id,draft_id) REFERENCES nfse_dps_signatures(tenant_id,id,draft_id),
+      CHECK((state='dispatch_reserved' AND version=1 AND reason='reserved' AND http_status IS NULL AND response_sha256 IS NULL)
+        OR (state='result_unknown' AND version=2 AND reason IN ('transport_failure','deadline_elapsed') AND http_status IS NULL AND response_sha256 IS NULL)
+        OR (state='response_unverified' AND version IN (2,3) AND reason='receipt_received' AND http_status IS NOT NULL AND response_sha256 IS NOT NULL))
+    );
+    CREATE TABLE nfse_dps_submission_requests (
+      id uuid PRIMARY KEY,tenant_id uuid NOT NULL,actor_id text NOT NULL,
+      command text NOT NULL CHECK(command IN ('start','outcome','recover')),fingerprint text NOT NULL CHECK(fingerprint ~ '^[a-f0-9]{64}$'),
+      attempt_id uuid NOT NULL,at timestamptz NOT NULL DEFAULT clock_timestamp(),
+      FOREIGN KEY(tenant_id,attempt_id) REFERENCES nfse_dps_submission_attempts(tenant_id,id)
+    );
+    CREATE TABLE nfse_dps_submission_events (
+      tenant_id uuid NOT NULL,attempt_id uuid NOT NULL,version integer NOT NULL CHECK(version BETWEEN 1 AND 3),
+      state text NOT NULL CHECK(state IN ('dispatch_reserved','result_unknown','response_unverified')),
+      reason text NOT NULL CHECK(reason IN ('reserved','transport_failure','deadline_elapsed','receipt_received')),
+      http_status integer CHECK(http_status BETWEEN 200 AND 599),response_sha256 text CHECK(response_sha256 ~ '^[a-f0-9]{64}$'),
+      actor_id text NOT NULL,at timestamptz NOT NULL CHECK(isfinite(at)),PRIMARY KEY(attempt_id,version),
+      FOREIGN KEY(tenant_id,attempt_id) REFERENCES nfse_dps_submission_attempts(tenant_id,id)
+    );
+    CREATE TRIGGER nfse_dps_submission_attempts_permanent BEFORE DELETE ON nfse_dps_submission_attempts FOR EACH ROW EXECUTE FUNCTION prevent_audit_changes();
+    CREATE TRIGGER nfse_dps_submission_requests_immutable BEFORE UPDATE OR DELETE ON nfse_dps_submission_requests FOR EACH ROW EXECUTE FUNCTION prevent_audit_changes();
+    CREATE TRIGGER nfse_dps_submission_events_immutable BEFORE UPDATE OR DELETE ON nfse_dps_submission_events FOR EACH ROW EXECUTE FUNCTION prevent_audit_changes();
+  `, "tenant_012");
 }

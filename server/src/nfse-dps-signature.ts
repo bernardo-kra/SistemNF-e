@@ -1,18 +1,13 @@
 import { createHash, createPrivateKey, sign, timingSafeEqual, verify, X509Certificate } from "node:crypto";
 import forge from "node-forge";
-import { XmlDocument, XmlC14NMode, ParseOption } from "libxml2-wasm";
+import { XmlDocument, ParseOption } from "libxml2-wasm";
 import { NfseDpsError, requireDpsDocument, validateSignedDpsStructure, validateUnsignedDpsXml } from "./nfse-dps-validation.js";
+import { readRsaSha256Signature, NfseXmlSignatureError, signatureNamespace, canonicalizationAlgorithm, signatureAlgorithm, digestAlgorithm, envelopedTransform, canonicalizationOptions } from "./nfse-xml-signature.js";
 // Local cryptographic experiment. This profile is NOT confirmed by SEFIN and has no sender.
 export const experimentalSignatureProfile = "experimental-rsa-sha256-c14n-v1" as const;
 const nfseNamespace = "http://www.sped.fazenda.gov.br/nfse";
-const signatureNamespace = "http://www.w3.org/2000/09/xmldsig#";
 const namespaces = { n: nfseNamespace, d: signatureNamespace };
-const canonicalizationAlgorithm = "http://www.w3.org/TR/2001/REC-xml-c14n-20010315";
-const signatureAlgorithm = "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256";
-const digestAlgorithm = "http://www.w3.org/2001/04/xmlenc#sha256";
-const envelopedTransform = signatureNamespace + "enveloped-signature";
 const xmlParseOptions = { option: ParseOption.XML_PARSE_NO_XXE | ParseOption.XML_PARSE_NONET | ParseOption.XML_PARSE_NO_SYS_CATALOG | ParseOption.XML_PARSE_NOERROR | ParseOption.XML_PARSE_NOWARNING };
-const canonicalizationOptions = { mode: XmlC14NMode.XML_C14N_1_0, withComments: false };
 type Common = {
   xml: string;
   issuerCnpj: string;
@@ -45,7 +40,7 @@ function controlled<T>(run: () => T): T {
   catch (error) {
     if (error instanceof NfseDpsSignatureError)
       throw error;
-    if (error instanceof NfseDpsError)
+    if (error instanceof NfseDpsError || error instanceof NfseXmlSignatureError)
       fail(error.code);
     fail("INVALID_DPS_SIGNATURE");
   }
@@ -174,7 +169,8 @@ function validateCertificate(certificatePem: string, cnpj: string, at: Date) {
   const bits = cert.publicKey.asymmetricKeyDetails?.modulusLength ?? 0;
   if (cert.publicKey.asymmetricKeyType !== "rsa" || bits < 2048 || bits > 8192)
     fail("UNSUPPORTED_SIGNING_KEY");
-  if (at.getTime() < Date.parse(cert.validFrom) || at.getTime() > Date.parse(cert.validTo))
+  const validFrom = Date.parse(cert.validFrom), validTo = Date.parse(cert.validTo);
+  if (!Number.isFinite(validFrom) || !Number.isFinite(validTo) || at.getTime() < validFrom || at.getTime() > validTo)
     fail("CERTIFICATE_NOT_VALID_AT_TIME");
   const parsed = forge.pki.certificateFromAsn1(fromDer(cert.raw.toString("binary")));
   const constraints = parsed.getExtension("basicConstraints") as {
@@ -218,54 +214,6 @@ function readSigningMaterial(credentials: SignInput["credentials"]) {
     copy.fill(0);
     pem?.fill(0);
   }
-}
-function decodeBase64(text: string, max: number) {
-  if (!text || text.length > max || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(text))
-    fail("INVALID_DPS_SIGNATURE");
-  const bytes = Buffer.from(text, "base64");
-  if (bytes.toString("base64") !== text)
-    fail("INVALID_DPS_SIGNATURE");
-  return bytes;
-}
-function validateSignatureShape(doc: XmlDocument, id: string) {
-  const sig = doc.get("/n:DPS/d:Signature", namespaces);
-  if (!sig)
-    fail("DPS_SIGNATURE_REQUIRED");
-  const allowed: Record<string, string[]> = {
-    Signature: [], SignedInfo: [], CanonicalizationMethod: ["Algorithm"], SignatureMethod: ["Algorithm"], Reference: ["URI"], Transforms: [], Transform: ["Algorithm"], DigestMethod: ["Algorithm"], DigestValue: [], SignatureValue: [], KeyInfo: [], X509Data: [], X509Certificate: []
-  };
-  for (const node of [sig, ...sig.find(".//*")]) {
-    const name = String(node.eval("local-name(.)"));
-    const attrs = allowed[name];
-    if (String(node.eval("namespace-uri(.)")) !== signatureNamespace || !attrs)
-      fail("INVALID_SIGNATURE_PROFILE");
-    if (!["Signature", "SignedInfo", "Reference", "Transforms", "KeyInfo", "X509Data"].includes(name) && node.find("*").length)
-      fail("INVALID_SIGNATURE_PROFILE");
-    for (const attr of node.find("@*"))
-      if (String(attr.eval("namespace-uri(.)")) !== "" || !attrs.includes(String(attr.eval("local-name(.)"))))
-        fail("INVALID_SIGNATURE_PROFILE");
-  }
-  const one = (path: string) => {
-    const nodes = sig.find(path, namespaces);
-    if (nodes.length !== 1)
-      fail("INVALID_SIGNATURE_PROFILE");
-    return nodes[0];
-  };
-  const info = one("d:SignedInfo");
-  const ref = one("d:SignedInfo/d:Reference");
-  if (ref.get("@URI")?.content !== "#" + id || sig.find(".//d:Reference", namespaces).length !== 1)
-    fail("INVALID_SIGNATURE_REFERENCE");
-  if (one("d:SignedInfo/d:CanonicalizationMethod").get("@Algorithm")?.content !== canonicalizationAlgorithm || one("d:SignedInfo/d:SignatureMethod").get("@Algorithm")?.content !== signatureAlgorithm || one("d:SignedInfo/d:Reference/d:DigestMethod").get("@Algorithm")?.content !== digestAlgorithm)
-    fail("INVALID_SIGNATURE_ALGORITHM");
-  const transforms = ref.find("d:Transforms/d:Transform", namespaces);
-  if (transforms.length !== 2 || transforms[0].get("@Algorithm")?.content !== envelopedTransform || transforms[1].get("@Algorithm")?.content !== canonicalizationAlgorithm)
-    fail("INVALID_SIGNATURE_TRANSFORMS");
-  for (const path of ["d:SignedInfo/d:CanonicalizationMethod", "d:SignedInfo/d:SignatureMethod", "d:SignedInfo/d:Reference/d:DigestMethod", "d:SignedInfo/d:Reference/d:Transforms"])
-    if (one(path).content.trim())
-      fail("INVALID_SIGNATURE_PROFILE");
-  return {
-    info, digest: decodeBase64(one("d:SignedInfo/d:Reference/d:DigestValue").content, 64), signature: decodeBase64(one("d:SignatureValue").content, 16384), certificate: decodeBase64(one("d:KeyInfo/d:X509Data/d:X509Certificate").content, 65536)
-  };
 }
 function offlineSignatureStatus(id: string) {
   return {
@@ -344,7 +292,9 @@ export function verifyDpsOffline(input: VerifyInput) {
     const doc = parseDps(input.xml, true);
     try {
       const id = requireIssuerIdentity(doc, input.issuerCnpj);
-      const signed = validateSignatureShape(doc, id);
+      const signature = doc.get("/n:DPS/d:Signature", namespaces);
+      if (!signature) fail("DPS_SIGNATURE_REQUIRED");
+      const signed = readRsaSha256Signature(signature, id);
       const cert = validateCertificate(input.certificatePem, input.issuerCnpj, input.at);
       if (!cert.raw.equals(signed.certificate))
         fail("SIGNER_CERTIFICATE_MISMATCH");

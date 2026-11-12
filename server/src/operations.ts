@@ -5,6 +5,8 @@ import { allowedKeys, inputRecord, requireUuid } from "./customers.js";
 import { ApiError, conflict, forbidden, invalidInput, notFound, unavailable } from "./errors.js";
 import type { Permission } from "./permissions.js";
 import { applyFinance, createAgreement, financeCommands, financeEntity, financeKinds, financeNeed, receivePayment, type FinanceRecord } from "./finance.js";
+import { orderReturnReasons, type OrderReturnInfo, type OrderReturnReason } from "../../shared/order-return.mjs";
+import { approveOrderBudget, budgetScope, initialOrderBudget, reviseOrderBudget } from "./order-budget.js";
 
 type Kind = "product" | "sale" | "order" | "purchase" | "technician" | "link";
 type Body = Record<string, any>;
@@ -18,7 +20,7 @@ export const commandPermissions: Record<string, Permission> = {
   ...financeCommands, "sale.checkout": "sales.create",
   "product.create": "products.create", "product.update": "products.update", "product.prices": "products.update", "stock.receive": "stock.receive",
   "sale.confirm": "sales.create", "sale.deliver": "sales.deliver", "technician.create": "orders.create",
-  "order.create": "orders.create", "order.update": "orders.update", "order.advance": "orders.advance", "order.deliver": "orders.deliver", "purchase.confirm": "purchases.import",
+  "order.create": "orders.create", "order.update": "orders.update", "order.approve": "orders.update", "order.advance": "orders.advance", "order.deliver": "orders.deliver", "order.return_without_repair": "orders.deliver", "purchase.confirm": "purchases.import",
 };
 export function resourcePermission(resource: string): Permission { const kind = resources[resource as keyof typeof resources]; if (!kind) throw notFound(); return readPermissions[kind]; }
 function need(access: OperationAccess, permission: Permission) { if (!access.permissions.includes(permission)) throw forbidden(); }
@@ -152,6 +154,20 @@ function putProduct(domain: Domain, input: Body, old?: RecordRow) {
 }
 function identityFields(body: Body, permitted: string[]) { return Object.fromEntries(permitted.filter((key) => Object.hasOwn(body, key)).map((key) => [key, body[key]])); }
 const auditValues: Record<Kind, string[]> = { product: ["sku", "name", "category", "unit", "costCents", "salePriceCents", "active", "serialized", "attributes", "gtin", "ncm"], sale: ["status", "grossCents", "discountCents", "totalCents"], order: ["stage", "technicianId", "laborCents", "approved", "tested", "due"], purchase: ["status"], technician: [], link: [] };
+function auditSnapshot(row?: RecordRow) {
+  if (!row) return {};
+  const values = identityFields(row.body, auditValues[row.entity_type]);
+  if (row.entity_type === "order" && row.body.returnWithoutRepair) {
+    // The authorized OS keeps recipient/authorization; avoid duplicating these texts in audit values.
+    values.returnReason = row.body.returnWithoutRepair.reason;
+    values.returnRecipientType = row.body.returnWithoutRepair.recipientType;
+  }
+  if (row.entity_type === "order") {
+    if (row.body.budgetRevision !== undefined) values.budgetRevision = row.body.budgetRevision;
+    if (row.body.budgetApproval) values.approvalChannel = row.body.budgetApproval.channel;
+  }
+  return values;
+}
 
 async function persist(client: PoolClient, domain: Domain, requestId: string, type: string, fingerprint: string, result: ResultRow) {
   await client.query("UPDATE operational_coordination SET sale_number=$1,order_number=$2 WHERE id=1", [domain.numbers.sale, domain.numbers.order]);
@@ -159,12 +175,18 @@ async function persist(client: PoolClient, domain: Domain, requestId: string, ty
   if (rows.length) await client.query(`INSERT INTO operational_records SELECT entity_type,id,body,version,created_at,updated_at,created_by,updated_by FROM jsonb_to_recordset($1::jsonb) AS x(entity_type text,id uuid,body jsonb,version integer,created_at timestamptz,updated_at timestamptz,created_by text,updated_by text) ON CONFLICT(entity_type,id) DO UPDATE SET body=excluded.body,version=excluded.version,updated_at=excluded.updated_at,updated_by=excluded.updated_by`, [JSON.stringify(rows)]);
   const stockRows = [...domain.stockChanged.values()].map(({ after: b }) => ({ ...b, updated_at: b.updated_at?.toISOString() }));
   if (stockRows.length) await client.query(`INSERT INTO stock_balances SELECT product_id,physical,reserved,version,updated_at,updated_by FROM jsonb_to_recordset($1::jsonb) AS x(product_id uuid,physical bigint,reserved bigint,version integer,updated_at timestamptz,updated_by text) ON CONFLICT(product_id) DO UPDATE SET physical=excluded.physical,reserved=excluded.reserved,version=excluded.version,updated_at=excluded.updated_at,updated_by=excluded.updated_by`, [JSON.stringify(stockRows)]);
-  const events: Body[] = [...domain.changed.values()].map(({ before, after }) => ({ id: randomUUID(), tenant_id: domain.access.tenantId, actor_id: domain.access.actorId, action: type, entity_type: after.entity_type, entity_id: after.id, entity_version: after.version, at: domain.now.toISOString(), field_names: Object.keys(after.body).filter((key) => !before || canonical(before.body[key]) !== canonical(after.body[key])), before_values: identityFields(before?.body ?? {}, auditValues[after.entity_type]), after_values: identityFields(after.body, auditValues[after.entity_type]) }));
+  const events: Body[] = [...domain.changed.values()].map(({ before, after }) => ({ id: randomUUID(), tenant_id: domain.access.tenantId, actor_id: domain.access.actorId, action: type, entity_type: after.entity_type, entity_id: after.id, entity_version: after.version, at: domain.now.toISOString(), field_names: Object.keys(after.body).filter((key) => !before || canonical(before.body[key]) !== canonical(after.body[key])), before_values: auditSnapshot(before), after_values: auditSnapshot(after) }));
   for (const { before, after } of domain.stockChanged.values()) events.push({ id: randomUUID(), tenant_id: domain.access.tenantId, actor_id: domain.access.actorId, action: type, entity_type: "stock", entity_id: after.product_id, entity_version: after.version, at: domain.now.toISOString(), field_names: ["physical", "reserved"], before_values: { physical: before.physical, reserved: before.reserved }, after_values: { physical: after.physical, reserved: after.reserved } });
   if (events.length) await client.query(`INSERT INTO audit_events(id,tenant_id,actor_id,action,entity_type,entity_id,entity_version,at,field_names,before_values,after_values) SELECT id,tenant_id,actor_id,action,entity_type,entity_id,entity_version,at,field_names,before_values,after_values FROM jsonb_to_recordset($1::jsonb) AS x(id uuid,tenant_id uuid,actor_id text,action text,entity_type text,entity_id uuid,entity_version integer,at timestamptz,field_names text[],before_values jsonb,after_values jsonb)`, [JSON.stringify(events)]);
   const movements = [...domain.stockChanged.values()].map(({ before, after, reference }) => ({ id: randomUUID(), request_id: requestId, product_id: after.product_id, physical_delta: after.physical - before.physical, reserved_delta: after.reserved - before.reserved, reference, at: domain.now.toISOString() }));
   if (movements.length) await client.query(`INSERT INTO stock_movements SELECT id,request_id,product_id,physical_delta,reserved_delta,reference,at FROM jsonb_to_recordset($1::jsonb) AS x(id uuid,request_id uuid,product_id uuid,physical_delta bigint,reserved_delta bigint,reference text,at timestamptz)`, [JSON.stringify(movements)]);
   await client.query("INSERT INTO operational_requests(id,command,fingerprint,entity_type,entity_id) VALUES($1,$2,$3,$4,$5)", [requestId, type, fingerprint, result.entity_type, result.id]);
+}
+
+function orderTechnician(domain: Domain, id: unknown) {
+  if (id == null) return { technicianId: null, technicianName: null };
+  const technician = domain.get("technician", id);
+  return { technicianId: technician.id, technicianName: technician.body.name };
 }
 
 async function apply(client: PoolClient, domain: Domain, type: string, data: Body): Promise<ResultRow> {
@@ -190,7 +212,7 @@ async function apply(client: PoolClient, domain: Domain, type: string, data: Bod
     allowedKeys(data, ["sourceType", "sourceId", "sourceVersion", "downPaymentCents", "downPaymentDue", "installmentCount", "firstDue", "installmentDueDates"]);
     if (!["sale", "order"].includes(data.sourceType)) throw invalidInput();
     const kind = data.sourceType as "sale" | "order", row = domain.get(kind, data.sourceId); domain.version(row, data.sourceVersion);
-    if (kind === "order" && !row.body.approved) throw conflict();
+    if (kind === "order" && (!row.body.approved || row.body.laborCents == null || row.body.laborCents <= 0)) throw conflict();
     financeNeed(access, kind === "order" ? "orders.read" : "sales.read");
     const { sourceType: _type, sourceId: _id, sourceVersion: _version, ...terms } = data;
     const agreement = await createAgreement(client, access, domain.now, { id: row.id, type: kind, number: row.body.number, customerId: row.body.customerId, customerName: row.body.customerName, amountCents: kind === "sale" ? row.body.totalCents : row.body.laborCents }, terms);
@@ -238,28 +260,60 @@ async function apply(client: PoolClient, domain: Domain, type: string, data: Bod
     allowedKeys(data, ["name"]); const name = text(data.name); return domain.all("technician").find((row) => row.body.name.toLowerCase() === name.toLowerCase()) ?? domain.put("technician", { name });
   }
   if (type === "order.create") {
-    allowedKeys(data, ["customerId", "technicianId", "equipment", "issue", "due", "laborCents"]); const buyer = await customer(client, data.customerId), technician = domain.get("technician", data.technicianId);
-    return domain.put("order", { number: domain.nextNumber("order"), customerId: buyer.id, customerName: buyer.name, customerPhone: buyer.phone, technicianId: technician.id, technicianName: technician.body.name, equipment: text(data.equipment, 160), issue: text(data.issue, 2000), diagnosis: "", due: civil(data.due), laborCents: integer(data.laborCents), approved: false, tested: false, stage: "received", financeStatus: "not_integrated" });
+    allowedKeys(data, ["customerId", "technicianId", "equipment", "issue", "due", "laborCents"]); const buyer = await customer(client, data.customerId);
+    const issue = text(data.issue, 2000), laborCents = nullableMoney(data.laborCents);
+    return domain.put("order", { number: domain.nextNumber("order"), customerId: buyer.id, customerName: buyer.name, customerPhone: buyer.phone, ...orderTechnician(domain, data.technicianId), equipment: text(data.equipment, 160), issue, diagnosis: "", due: data.due == null ? null : civil(data.due), laborCents, ...initialOrderBudget(issue, laborCents, { at: domain.now.toISOString(), actorId: access.actorId, actorName: access.actorName ?? access.actorId }), approved: false, tested: false, stage: "received", financeStatus: "not_integrated" });
   }
   if (type.startsWith("order.")) {
     const row = domain.get("order", data.id); domain.version(row, data.version);
-    if (row.body.stage === "delivered") throw conflict();
+    if (["delivered", "closed_without_repair"].includes(row.body.stage)) throw conflict();
+    const budgetContext = { at: domain.now.toISOString(), actorId: access.actorId, actorName: access.actorName ?? access.actorId };
+    if (type === "order.approve") return domain.put("order", approveOrderBudget(row.body, data, budgetContext), row);
+    if (type === "order.return_without_repair") {
+      allowedKeys(data, ["id", "version", "reason", "details", "recipient", "confirmed"]);
+      if (data.confirmed !== true || typeof data.reason !== "string" || !Object.hasOwn(orderReturnReasons, data.reason)) throw invalidInput();
+      const reason = data.reason as OrderReturnReason, details = text(data.details ?? "", 500, reason !== "other");
+      const recipient = inputRecord(data.recipient);
+      let recipientName: string, authorization = "";
+      if (recipient.type === "customer") { allowedKeys(recipient, ["type"]); recipientName = text(row.body.customerName, 120); }
+      else if (recipient.type === "other") { allowedKeys(recipient, ["type", "name", "authorization"]); recipientName = text(recipient.name, 120); authorization = text(recipient.authorization, 500); }
+      else throw invalidInput();
+      if (row.body.approved !== false || row.body.tested !== false || row.body.agreementId || !["received", "diagnosing", "awaiting_approval"].includes(row.body.stage))
+        throw new ApiError(409, "ORDER_RETURN_NOT_ALLOWED", "A devolução sem reparo exige uma OS ainda sem serviço aprovado ou iniciado. Confira o atendimento antes de prosseguir.");
+      const returnWithoutRepair: OrderReturnInfo = { reason, details, recipientType: recipient.type, recipientName, authorization,
+        at: domain.now.toISOString(), actorId: access.actorId, actorName: access.actorName ?? access.actorId };
+      return domain.put("order", { ...row.body, stage: "closed_without_repair", returnWithoutRepair }, row);
+    }
     if (type === "order.update") {
-      allowedKeys(data, ["id", "version", "technicianId", "diagnosis", "due", "laborCents", "approved", "tested"]); const next = { ...row.body };
+      allowedKeys(data, ["id", "version", "technicianId", "diagnosis", "due", "laborCents", "budgetScope", "approved", "tested"]); const next = { ...row.body };
       if (row.body.agreementId && ((data.approved !== undefined && data.approved !== row.body.approved) || (data.laborCents !== undefined && data.laborCents !== row.body.laborCents))) throw conflict();
-      if (data.technicianId !== undefined) { const technician = domain.get("technician", data.technicianId); next.technicianId = technician.id; next.technicianName = technician.body.name; }
+      if (data.technicianId !== undefined) {
+        if (data.technicianId === null && row.body.stage !== "received") throw conflict();
+        Object.assign(next, orderTechnician(domain, data.technicianId));
+      }
       if (data.diagnosis !== undefined) next.diagnosis = text(data.diagnosis, 4000, true);
-      if (data.due !== undefined) next.due = civil(data.due);
-      if (data.laborCents !== undefined) { const amount = integer(data.laborCents); if (row.body.approved && amount !== row.body.laborCents) throw conflict(); next.laborCents = amount; }
-      if (data.approved !== undefined) { if (row.body.stage !== "awaiting_approval") throw conflict(); next.approved = bool(data.approved); }
+      if (data.due !== undefined) next.due = data.due === null ? null : civil(data.due);
+      if (data.laborCents !== undefined) { const amount = nullableMoney(data.laborCents); if (row.body.approved && amount !== row.body.laborCents) throw conflict(); next.laborCents = amount; }
+      if (data.budgetScope !== undefined) next.budgetScope = budgetScope(data.budgetScope);
+      if (data.approved !== undefined) {
+        const approved = bool(data.approved);
+        if (approved !== row.body.approved) throw new ApiError(409, "ORDER_APPROVAL_REQUIRED", "Registre a autorização do cliente no orçamento atual. Um aceite anterior não pode ser removido por edição.");
+      }
       if (data.tested !== undefined) { if (row.body.stage !== "quality_check") throw conflict(); next.tested = bool(data.tested); }
-      return domain.put("order", next, row);
+      if (next.approved && next.laborCents == null) throw new ApiError(409, "ORDER_BUDGET_REQUIRED", "Defina a mão de obra antes de registrar a aprovação. Zero significa serviço gratuito.");
+      return domain.put("order", reviseOrderBudget(row.body, next, budgetContext), row);
     }
     if (type === "order.advance") {
-      allowedKeys(data, ["id", "version"]); const stages = ["received", "diagnosing", "awaiting_approval", "in_progress", "quality_check", "ready_for_pickup"];
+      allowedKeys(data, ["id", "version", "technicianId"]); const stages = ["received", "diagnosing", "awaiting_approval", "in_progress", "quality_check", "ready_for_pickup"];
+      const next = { ...row.body };
+      if (data.technicianId !== undefined) {
+        if (row.body.stage !== "received") throw conflict();
+        Object.assign(next, orderTechnician(domain, data.technicianId));
+      }
+      if (!next.technicianId) throw new ApiError(409, "ORDER_TECHNICIAN_REQUIRED", "Defina o técnico responsável antes de iniciar o diagnóstico.");
       const index = stages.indexOf(row.body.stage);
-      if (index < 0 || index === stages.length - 1 || (row.body.stage === "awaiting_approval" && !row.body.approved) || (row.body.stage === "quality_check" && !row.body.tested)) throw conflict();
-      return domain.put("order", { ...row.body, stage: stages[index + 1] }, row);
+      if (index < 0 || index === stages.length - 1 || (row.body.stage === "awaiting_approval" && (!row.body.approved || row.body.laborCents == null)) || (row.body.stage === "quality_check" && !row.body.tested)) throw conflict();
+      return domain.put("order", { ...next, stage: stages[index + 1] }, row);
     }
     allowedKeys(data, ["id", "version", "allowUnsettled"]);
     if (row.body.stage !== "ready_for_pickup" || !row.body.approved || !row.body.tested || data.allowUnsettled !== true) throw new ApiError(409, "DELIVERY_CHECK_REQUIRED", "Confirme a entrega sem conferência financeira integrada.");
@@ -317,6 +371,7 @@ export async function executeOperation(access: OperationAccess, raw: unknown) {
   const requestId = requireUuid(input.requestId), type = text(input.type, 40), data = inputRecord(input.data);
   const permission = commandPermissions[type]; if (!permission) throw invalidInput(); need(access, permission);
   if (type === "sale.checkout") { need(access, "finance.agreements.create"); if (data.deliver === true) need(access, "sales.deliver"); if (data.payment !== undefined) need(access, "finance.receive"); }
+  if (type === "order.advance" && data.technicianId !== undefined) need(access, "orders.update");
   // Revalidate discount authority before replay; an old request is not a lasting grant.
   if (["sale.confirm", "sale.checkout"].includes(type) && Array.isArray(data.items)) {
     for (const item of data.items) {
@@ -349,8 +404,8 @@ export async function executeOperation(access: OperationAccess, raw: unknown) {
     }
     if (type === "sale.deliver") return { where: "entity_type='sale' AND id=$1", values: [requireUuid(data.id)] };
     if (type === "technician.create") return { where: "entity_type='technician'" };
-    if (type === "order.create") return { where: "entity_type='technician' AND id=$1", values: [requireUuid(data.technicianId)] };
-    if (type.startsWith("order.")) return { where: "(entity_type='order' AND id=$1) OR (entity_type='technician' AND id=$2)", values: [requireUuid(data.id), data.technicianId === undefined ? null : requireUuid(data.technicianId)] };
+    if (type === "order.create") return { where: "entity_type='technician' AND id=$1", values: [data.technicianId == null ? null : requireUuid(data.technicianId)] };
+    if (type.startsWith("order.")) return { where: "(entity_type='order' AND id=$1) OR (entity_type='technician' AND id=$2)", values: [requireUuid(data.id), data.technicianId == null ? null : requireUuid(data.technicianId)] };
     if (type === "agreement.create") { if (data.sourceType !== "sale" && data.sourceType !== "order") throw invalidInput(); return { where: "entity_type=$1 AND id=$2", values: [data.sourceType, requireUuid(data.sourceId)] }; }
     if (financeCommands[type]) return { where: "false" };
     const doc = document(data.document);
@@ -382,7 +437,7 @@ export async function listOperations(access: OperationAccess, resource: string, 
   const from = query.from === undefined ? undefined : civil(query.from), to = query.to === undefined ? undefined : civil(query.to);
   if (from && to && from > to) throw invalidInput();
   const status = query.status === undefined ? "all" : text(query.status, 40);
-  const statuses: Record<string, string[]> = { product: ["all", "active", "inactive", "pending", "low"], stock: ["all", "available", "reserved"], sale: ["all", "confirmed", "delivered"], order: ["all", "received", "diagnosing", "awaiting_approval", "in_progress", "quality_check", "ready_for_pickup", "delivered"], purchase: ["all", "pending", "partial", "received"], technician: ["all"] };
+  const statuses: Record<string, string[]> = { product: ["all", "active", "inactive", "pending", "low"], stock: ["all", "available", "reserved"], sale: ["all", "confirmed", "delivered"], order: ["all", "received", "diagnosing", "awaiting_approval", "in_progress", "quality_check", "ready_for_pickup", "delivered", "closed_without_repair"], purchase: ["all", "pending", "partial", "received"], technician: ["all"] };
   if (!statuses[kind].includes(status)) throw invalidInput();
   if (kind === "product" && status === "low") need(access, "stock.read");
   // Filter and page in PostgreSQL: opening Products must not read every invoice and OS.

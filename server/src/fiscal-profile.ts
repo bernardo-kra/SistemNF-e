@@ -1,4 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
+import type { NfseReadiness } from "../../shared/nfse-readiness.js";
+import { readA1Certificate } from "./nfse-a1-custody.js";
 import type { PoolClient } from "pg";
 import { allowedKeys, inputRecord, requireUuid } from "./customers.js";
 import { ApiError, conflict, invalidInput, notFound } from "./errors.js";
@@ -149,6 +151,23 @@ async function readCustomer(client: PoolClient, id: string, lock = false) {
     throw notFound();
   return row;
 }
+/** Advisory read only. Local setup never certifies fiscal authorization or enables transport. */
+export async function readFiscalReadiness(access: DpsJournalAccess, storageConfigured: boolean): Promise<NfseReadiness> {
+  const profile = await readFiscalRecord(access, "profile");
+  const certificate = await readA1Certificate(access);
+  const now = Date.now();
+  return {
+    tenantId: access.tenantId, environment: "production-restricted", readyForSubmission: false,
+    setup: {
+      profileComplete: profile.preparationReady,
+      certificateRegistered: Boolean(certificate), storageConfigured,
+      certificateCurrentForIssuer: Boolean(certificate && certificate.issuerCnpj === profile.fields.cnpj
+        && Date.parse(certificate.validFrom) <= now && now < Date.parse(certificate.validTo)),
+    },
+    technicalBlockers: ["OFFICIAL_SIGNATURE_PROFILE_UNCONFIRMED", "OFFICIAL_TRANSPORT_CONTRACT_UNCONFIRMED", "SUBMISSION_JOURNAL_REQUIRED", "OFFICIAL_HOMOLOGATION_REQUIRED"],
+  };
+}
+
 export async function readFiscalRecord(access: DpsJournalAccess, kind: Kind, rawId?: unknown) {
   const id = kind === "profile" ? access.tenantId : requireUuid(rawId);
   return withDpsTransaction(access, false, async (client) => {

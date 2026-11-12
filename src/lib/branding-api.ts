@@ -1,9 +1,11 @@
 import { accessBase, accessRequest, AccessError } from "./access-api";
 import { resolveApiOrigin } from "../../shared/api-origin.mjs";
+import type { OrderReturnInfo } from "../../shared/order-return.mjs";
+import type { OrderBudgetApproval } from "../../shared/order-budget.mjs";
 
 export type BrandAsset = { mimeType: string; width: number; height: number };
 export type Branding = { version: number; backgroundOpacity: number; logo: BrandAsset | null; background: BrandAsset | null; updatedAt: string | null; updatedBy: string | null };
-export type ReceiptOrder = { id: string; number: number; version: number; customerName: string; customerPhone: string; equipment: string; issue: string; diagnosis: string; technicianName: string; due: string; laborCents: number; approved: boolean; tested: boolean; stage: string; createdAt: string; updatedAt: string };
+export type ReceiptOrder = { id: string; number: number; version: number; customerName: string; customerPhone: string; equipment: string; issue: string; diagnosis: string; technicianName: string | null; due: string | null; laborCents: number | null; approved: boolean; tested: boolean; stage: string; createdAt: string; updatedAt: string; returnWithoutRepair?: OrderReturnInfo; budgetRevision?: number; budgetScope?: string; budgetApproval?: OrderBudgetApproval };
 export type OrderDocument = { tenantId: string; companyName: string; generatedAt: string; order: ReceiptOrder; branding: Branding };
 export const brandingBase = (tenant: string) => `${accessBase(tenant)}/branding`;
 export function checkedBranding(value: unknown): Branding {

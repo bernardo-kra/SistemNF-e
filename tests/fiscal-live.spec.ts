@@ -12,6 +12,7 @@ async function api(page:Page,ready=false,rights=["customers.read","orders.read",
   if(path.endsWith("/me"))json={user:{id:"qa-manager",name:"Pessoa QA",email:"qa@example.test"},tenants:[{id:tenant,name:"Empresa genérica QA",role:"owner",permissions:rights}]};
   else if(path.endsWith("/branding"))json={branding:{version:0,logo:null,background:null,backgroundOpacity:10}};
   else if(path.endsWith("/profile")){if(method==="PATCH"){Object.assign(profile.fields,body);profile.version++;}json={profile};}
+  else if(path.endsWith("/readiness"))json={tenantId:tenant,environment:"production-restricted",readyForSubmission:false,setup:{profileComplete:false,certificateRegistered:false,certificateCurrentForIssuer:false,storageConfigured:false},technicalBlockers:[]};
   else if(path.endsWith("/certificate"))json={tenantId:tenant,storageConfigured:false,certificate:null};
   else if(path.endsWith("/operations/orders"))json={items:[{id:order,number:"OS-QA001",customerId:customer,customerName:"Cliente QA",approved:true,version:1,laborCents:12345},{id:order.replace(/2$/,"3"),number:"OS-QA002",customerId:customer,customerName:"Outro cliente QA",approved:true,version:1,laborCents:10000}],total:2};
   else if(path.endsWith(`/customers/${customer}`))json={customerFiscal:{version:1,fields:{document:{type:"CPF",value:"52998224725"},address:null}}};

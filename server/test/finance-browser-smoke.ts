@@ -63,7 +63,7 @@ try {
   const tech = await operation("technician.create", { name: "Técnico financeiro QA" });
   let order = await operation("order.create", { customerId: customer.id, technicianId: tech.id, equipment: "Aparelho QA", issue: "Reparo QA", due: "2100-01-01", laborCents: 12000 });
   for (let i = 0; i < 2; i++) order = await operation("order.advance", { id: order.id, version: order.version });
-  order = await operation("order.update", { id: order.id, version: order.version, approved: true });
+  order = await operation("order.approve", { id: order.id, version: order.version, budgetRevision: order.budgetRevision, channel: "in_person" });
   await operation("agreement.create", { sourceType: "order", sourceId: order.id, sourceVersion: order.version, downPaymentCents: 0, installmentCount: 1, firstDue: "2100-02-01" });
   await page.setViewportSize({ width: 1440, height: 1000 }); await page.getByRole("link", { name: "Ordens de serviço", exact: true }).click();
   const start = traffic.length, started = performance.now();

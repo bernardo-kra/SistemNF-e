@@ -152,7 +152,7 @@ test("OP09 OS exige aprovação e testes; técnico não é autor e entrega não 
     assert.equal(order.stage, "received"); assert.equal(order.financeStatus, "not_integrated");
     for (let i = 0; i < 2; i++) order = await command(app, cookie, "order.advance", { id: order.id, version: order.version });
     assertError(await request(app, cookie, "order.advance", { id: order.id, version: order.version }), 409);
-    order = await command(app, cookie, "order.update", { id: order.id, version: order.version, approved: true });
+    order = await command(app, cookie, "order.approve", { id: order.id, version: order.version, budgetRevision: order.budgetRevision, channel: "in_person" });
     order = await command(app, cookie, "order.advance", { id: order.id, version: order.version });
     order = await command(app, cookie, "order.advance", { id: order.id, version: order.version });
     assertError(await request(app, cookie, "order.advance", { id: order.id, version: order.version }), 409);
@@ -245,9 +245,9 @@ test("OP15 entradas extras, custo/quantidade inválidos e origem indevida não g
 test("OP16 banco indisponível não usa demonstração; novos direitos estão no catálogo próprio", async () => {
   await scenario(async (app, cookie) => {
     const options: any = await app.instance.inject({ method: "GET", url: `/api/v1/tenants/${TENANT_A}/access-options`, headers: { cookie } });
-    // FIN-LIVE e DSC ampliam explicitamente o catálogo; preservar comparação exata e direitos anteriores.
+    // FIN-LIVE, DSC e SIM-NFSE ampliam o catálogo; manter comparação exata dos direitos aprovados.
     assert.deepEqual(options.json().operationalPermissions.map((item: any) => item.id).sort(),
-      [...opRights, "sales.discount", "finance.read", "finance.agreements.create", "finance.receive", "finance.accounts.manage", "finance.cash.manage", "fiscal.read", "fiscal.configure", "fiscal.prepare", "fiscal.certificates.manage"].sort());
+      [...opRights, "sales.discount", "finance.read", "finance.agreements.create", "finance.receive", "finance.accounts.manage", "finance.cash.manage", "fiscal.read", "fiscal.configure", "fiscal.prepare", "fiscal.certificates.manage", "fiscal.simulate"].sort());
     const broken = await fixture.app({ tenantDatabaseUrls: { a: "postgresql://invalid:invalid@127.0.0.1:1/unavailable", b: fixture.config.tenantDatabaseUrls.b } });
     try { assertError(await broken.instance.inject({ method: "GET", url: `${base()}/products`, headers: { cookie } }), 503); }
     finally { await broken.close(); }

@@ -1,13 +1,8 @@
-import { readFileSync } from "node:fs";
-import { createHash } from "node:crypto";
-import { XmlDocument, XsdValidator, XmlBufferInputProvider, xmlRegisterInputProvider, ParseOption } from "libxml2-wasm";
+import { XmlDocument } from "libxml2-wasm";
+import { nfseNamespace as namespace, nfseParseOptions as parseOptions, validateNfseSchema, NfseSchemaError } from "./nfse-xml-schema.js";
 
 export const dpsSchemaId = "nfse-prodrest-20261020" as const;
-const namespace = "http://www.sped.fazenda.gov.br/nfse", ns = { n: namespace };
-const manifestHash = "a7c8782e7213c648d7ecf40fd97ac13e4ae9db94e1488c267008290adbf1ca8e";
-const files = ["DPS_v1.01.xsd", "tiposComplexos_v1.01.xsd", "tiposSimples_v1.01.xsd", "xmldsig-core-schema.xsd"];
-const parseOptions = { option: ParseOption.XML_PARSE_NO_XXE | ParseOption.XML_PARSE_NONET | ParseOption.XML_PARSE_NO_SYS_CATALOG | ParseOption.XML_PARSE_NOERROR | ParseOption.XML_PARSE_NOWARNING };
-let schemas: Record<string, Buffer> | undefined;
+const ns = { n: namespace };
 
 export class NfseDpsError extends Error {
   constructor(readonly code: string, readonly field?: string) { super(code); this.name = "NfseDpsError"; }
@@ -39,25 +34,6 @@ export function createDpsId(input: { municipalityCode: string; documentType: "CN
   return `DPS${input.municipalityCode}${input.documentType === "CPF" ? "1" : "2"}${input.document.padStart(14, "0")}${input.series.padStart(5, "0")}${input.number.padStart(15, "0")}`;
 }
 
-function officialSchemas() {
-  if (schemas) return schemas;
-  try {
-    const root = new URL("../resources/nfse/prodrest-20261020/", import.meta.url);
-    const raw = readFileSync(new URL("manifest.json", root));
-    if (createHash("sha256").update(raw).digest("hex") !== manifestHash) throw new Error();
-    const manifest = JSON.parse(raw.toString("utf8")), data: Record<string, Buffer> = Object.create(null);
-    for (const name of files) {
-      const buffer = readFileSync(new URL(name, root));
-      if (createHash("sha256").update(buffer).digest("hex") !== manifest.files[name]) throw new Error();
-      data[name] = buffer;
-    }
-    const provider = new XmlBufferInputProvider(data);
-    // No filesystem/network resolver. Only these immutable public schemas can be opened.
-    if (!xmlRegisterInputProvider({ match: () => true, open: name => provider.open(name), read: (fd, buffer) => provider.read(fd, buffer), close: fd => provider.close(fd) })) throw new Error();
-    schemas = data; return data;
-  } catch { dpsFailure("DPS_SCHEMA_UNAVAILABLE"); }
-}
-
 /** Structural/identity guard for unsigned 2026 test drafts. NEVER fiscal authorization. */
 export function validateUnsignedDpsXml(xml: string) {
   return validateDpsStructure(xml, false);
@@ -68,7 +44,7 @@ export function validateSignedDpsStructure(xml: string) {
 }
 function validateDpsStructure(xml: string, signed: boolean) {
   if (typeof xml !== "string" || !xml.trim() || Buffer.byteLength(xml, "utf8") > (signed ? 160 : 128) * 1024 || /<!\s*(?:DOCTYPE|ENTITY)|<\?(?!xml\s)/i.test(xml) || /encoding\s*=\s*["'](?!utf-8["'])/i.test(xml)) dpsFailure("UNSAFE_DPS_XML");
-  let doc: XmlDocument | undefined, schema: XmlDocument | undefined, validator: XsdValidator | undefined;
+  let doc: XmlDocument | undefined;
   try {
     doc = XmlDocument.fromString(xml, parseOptions);
     if (doc.find("//*[namespace-uri()='http://www.w3.org/2001/XInclude']|//@*[namespace-uri()='http://www.w3.org/2001/XMLSchema-instance']").length) dpsFailure("UNSAFE_DPS_XML");
@@ -80,13 +56,11 @@ function validateDpsStructure(xml: string, signed: boolean) {
     if (value("/n:DPS/@versao") !== "1.01") dpsFailure("UNSUPPORTED_DPS_SCHEMA");
     if (value("/n:DPS/n:infDPS/n:tpAmb") !== "2") dpsFailure("UNSUPPORTED_DPS_ENVIRONMENT");
     if (!value("/n:DPS/n:infDPS/n:dhEmi").startsWith("2026-") || !value("/n:DPS/n:infDPS/n:dCompet").startsWith("2026-")) dpsFailure("UNSUPPORTED_DPS_PERIOD");
-    const data = officialSchemas();
-    schema = XmlDocument.fromBuffer(data["DPS_v1.01.xsd"], { ...parseOptions, url: "DPS_v1.01.xsd" });
-    validator = XsdValidator.fromDoc(schema); validator.validate(doc);
+    validateNfseSchema(doc, "DPS_v1.01.xsd");
     const cnpj = value("/n:DPS/n:infDPS/n:prest/n:CNPJ"), cpf = value("/n:DPS/n:infDPS/n:prest/n:CPF");
     const expected = createDpsId({ municipalityCode: value("/n:DPS/n:infDPS/n:cLocEmi"), documentType: cnpj ? "CNPJ" : "CPF", document: cnpj || cpf, series: value("/n:DPS/n:infDPS/n:serie"), number: value("/n:DPS/n:infDPS/n:nDPS") });
     if (value("/n:DPS/n:infDPS/@Id") !== expected) dpsFailure("DPS_IDENTITY_MISMATCH");
     return { schemaId: dpsSchemaId, structurallyValid: true as const, readyForSubmission: false as const };
-  } catch (error) { if (error instanceof NfseDpsError) throw error; dpsFailure("INVALID_DPS_XML"); }
-  finally { validator?.dispose(); schema?.dispose(); doc?.dispose(); }
+  } catch (error) { if (error instanceof NfseDpsError) throw error; if (error instanceof NfseSchemaError) dpsFailure("DPS_SCHEMA_UNAVAILABLE"); dpsFailure("INVALID_DPS_XML"); }
+  finally { doc?.dispose(); }
 }

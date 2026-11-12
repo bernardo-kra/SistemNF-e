@@ -265,7 +265,7 @@ test("FIN16 acordo de OS exige aprovação e versão; preserva orçamento contra
     let order = await command(app, cookie, "order.create", { customerId: buyer.id, technicianId: tech.id, equipment: "Equipamento fictício", issue: "Serviço", due: "2100-01-01", laborCents: 120000 });
     const agreement = (version: number) => ({ sourceType: "order", sourceId: order.id, sourceVersion: version, downPaymentCents: 30000, downPaymentDue: "2100-01-01", installmentCount: 3, firstDue: "2100-02-01" });
     assertError(await request(app, cookie, "agreement.create", agreement(order.version)), 409);
-    order = await command(app, cookie, "order.advance", { id: order.id, version: order.version }); order = await command(app, cookie, "order.advance", { id: order.id, version: order.version }); order = await command(app, cookie, "order.update", { id: order.id, version: order.version, approved: true });
+    order = await command(app, cookie, "order.advance", { id: order.id, version: order.version }); order = await command(app, cookie, "order.advance", { id: order.id, version: order.version }); order = await command(app, cookie, "order.approve", { id: order.id, version: order.version, budgetRevision: order.budgetRevision, channel: "in_person" });
     assertError(await request(app, cookie, "agreement.create", agreement(order.version - 1)), 409);
     await command(app, cookie, "agreement.create", agreement(order.version));
     const rows = await installments(app, cookie, buyer.id); assert.equal(rows.reduce((sum, row) => sum + row.amountCents, 0), 120000); assert.equal(rows.every((row) => row.sourceType === "order" && row.sourceId === order.id), true);
@@ -484,7 +484,7 @@ test("OS-REC01 filtro da OS pagina somente sua dívida; recebimento parcial e re
     const tech = await command(app, cookie, "technician.create", { name: "Técnico financeiro QA" });
     let order = await command(app, cookie, "order.create", { customerId: buyer.id, technicianId: tech.id, equipment: "Aparelho QA", issue: "Reparo QA", due: "2100-01-01", laborCents: 9000 });
     for (let i = 0; i < 2; i++) order = await command(app, cookie, "order.advance", { id: order.id, version: order.version });
-    order = await command(app, cookie, "order.update", { id: order.id, version: order.version, approved: true });
+    order = await command(app, cookie, "order.approve", { id: order.id, version: order.version, budgetRevision: order.budgetRevision, channel: "in_person" });
     await command(app, cookie, "agreement.create", { sourceType: "order", sourceId: order.id, sourceVersion: order.version, downPaymentCents: 0, installmentCount: 3, firstDue: "2100-02-01" });
     const filter = `installments?customerId=${buyer.id}&sourceType=order&sourceId=${order.id}&status=open`;
     const first = await get(app, cookie, `${filter}&limit=1`), second = await get(app, cookie, `${filter}&limit=1&offset=1`);

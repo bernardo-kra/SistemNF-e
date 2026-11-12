@@ -123,6 +123,11 @@ export async function orderReceipt(access: Access, rawId: unknown) {
     return { tenantId: access.tenantId, companyName: access.tenantName, generatedAt: new Date().toISOString(), order: {
       id: row.id, number: body.number, version: row.version, customerName: body.customerName, customerPhone: body.customerPhone ?? "", equipment: body.equipment,
       issue: body.issue, diagnosis: body.diagnosis, technicianName: body.technicianName, due: body.due, laborCents: body.laborCents, approved: body.approved, tested: body.tested, stage: body.stage,
-      createdAt: row.created_at.toISOString(), updatedAt: row.updated_at.toISOString() }, branding };
+      ...(body.budgetRevision === undefined ? {} : { budgetRevision: body.budgetRevision, budgetScope: body.budgetScope }),
+      ...(body.budgetApproval ? { budgetApproval: body.budgetApproval } : {}),
+      createdAt: row.created_at.toISOString(), updatedAt: row.updated_at.toISOString(),
+      ...(body.returnWithoutRepair ? { returnWithoutRepair: { reason: body.returnWithoutRepair.reason, details: body.returnWithoutRepair.details,
+        recipientType: body.returnWithoutRepair.recipientType, recipientName: body.returnWithoutRepair.recipientName, authorization: body.returnWithoutRepair.authorization,
+        at: body.returnWithoutRepair.at, actorId: body.returnWithoutRepair.actorId, actorName: body.returnWithoutRepair.actorName } } : {}) }, branding };
   }, true);
 }

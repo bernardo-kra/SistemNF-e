@@ -1,5 +1,11 @@
 # Sistem — sua loja e assistência no mesmo atendimento
 
+**Desenvolvimento local em12/11 — aguardando publicação:** antes da aprovação, alterar o serviço proposto ou a mão de obra preserva a versão anterior do orçamento. Para registrar a autorização, cliente/serviço/valor já aparecem preenchidos: o atendente informa se foi presencialmente, por WhatsApp, telefone ou e-mail. O sistema registra funcionário, horário e versão; o comprovante identifica o orçamento. Esse registro é o relato do atendimento, sem assinatura digital do consumidor. Após o aceite, serviço/valor ficam protegidos. Peças e renegociação posterior continuam pendentes.
+
+**Novo teste em desenvolvimento local:** na aba **Simulador**, é possível usar uma OS aprovada para experimentar aceite, rejeição e recuperação de uma falha, sem repetir os dados do cliente ou do serviço. Os resultados ficam no histórico e mostram **Simulação — sem validade fiscal**. Nenhuma nota é enviada ao governo; esse recurso não substitui a emissão oficial. Ainda não publicado.
+
+**Fiscal em desenvolvimento local em 09/11:** o painel mostra pendências do cadastro/certificado e mantém emissão oficial indisponível. Transporte de homologação está em protótipo interno; ainda não há nota autorizada por esse fluxo. Faltam A1/dados fiscais confirmados, validações oficiais e conclusão do envio/recuperação. Esta atualização não foi publicada.
+
 Apresentação da versão de testes publicada em **29/10/2026**: [abrir Sistem](https://sistemnf-e.onrender.com/).
 
 O Sistem reúne o atendimento da loja de eletrônicos e da assistência técnica: clientes, produtos, compras, estoque, vendas, ordens de serviço e recebimentos. A proposta é aproveitar o que já foi informado e reduzir a necessidade de trocar de tela ou lançar a mesma informação duas vezes.
@@ -39,11 +45,19 @@ Na OS com condições de pagamento registradas e saldo em aberto, **Receber OS**
 
 ## O que ainda está em desenvolvimento
 
+**Implementado localmente em 09/11 — aguardando publicação:** o aparelho pode ser recebido com cliente, equipamento e solicitação, deixando técnico, previsão e orçamento pendentes. Técnico é escolhido antes do diagnóstico; quem tem permissão pode atribuí-lo e iniciar a etapa em uma confirmação. Previsão não é preenchida automaticamente. Zero significa serviço gratuito; antes da aprovação é necessário definir o valor. Lista, comprovante e relatório distinguem pendências. Versões do orçamento, peças e registro completo do aceite ainda estão pendentes.
+
+**Implementado localmente em08/11 — aguardando publicação:** devolução de equipamento sem reparo para OS ainda sem aprovação/início/acordo. Selecionar motivo e confirmar a entrega ao cliente conhecido; outra pessoa exige nome/autorização. O registro preserva proposta e histórico, sem cobrar, quitar ou reembolsar. Cancelamento de serviço aprovado/iniciado e diagnóstico cobrável continuam pendentes.
+
+**Preparado localmente em 08/11, aguardando publicação:** relatórios do banco de recebimentos, parcelas, vendas e ordens de serviço, com filtros e CSV. Na OS, os valores de mão de obra aprovada e sem aprovação ficam separados; etapa e valores são os atuais, mesmo ao consultar entradas antigas. Aprovação não é apresentada como pagamento. Não inclui peças nem substitui prestação de contas completa.
+
 A consulta externa de crédito e o limite automático por cliente ainda não estão disponíveis. O sistema já acompanha dívidas e recebimentos, mas isso não representa aprovação automática de crédito.
 
 Relatórios completos, diagnóstico central de falhas, emissão fiscal real e gestão de parceiros ainda precisam de integração. A leitura de código para abrir a OS continua na demonstração, com integração conectada pendente; o novo comprovante personalizado conectado é uma impressão básica, sem essa leitura automática. Peças aplicadas em reparos, orçamento versionado, séries individuais, estornos, contas a pagar, cartão e cheque também têm etapas pendentes.
 
 Na entrega da OS, a versão atual exige confirmação explícita de entrega sem conferência financeira integrada. Não interprete essa ação como quitação. Lucro/margem do produto são estimativas antes de taxas, impostos e outras despesas.
+
+**Revisão da rotina em08/11:** ainda é necessário completar situações comuns: devolver equipamento sem reparo após recusa do orçamento, distinguir preço desconhecido de serviço gratuito, registrar versões do orçamento/aceite e tratar estornos, devoluções e ajustes de inventário/caixa. A entrada mínima da OS, eventual venda avulsa e a política de retirada a prazo precisam ser definidas com a loja. Essa revisão não mudou o aplicativo nem liberou uso como sistema completo de produção. [Detalhes e prioridades](16-regras-de-negocio.md#revisão-de-aderência-à-rotina--08112026).
 
 ## Como avaliar a versão de testes
 

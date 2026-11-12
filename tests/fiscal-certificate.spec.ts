@@ -14,7 +14,8 @@ async function api(page: Page, manage = true, configured = true) {
     if (path.endsWith("/me")) json = { user: { id: "generic-manager", name: "Pessoa QA", email: "qa@example.test" }, tenants: [{ id: tenant, name: "Empresa genérica QA", role: "owner", permissions: manage ? rights : ["fiscal.read"] }] };
     else if (path.endsWith("/branding")) json = { branding: { version: 0, logo: null, background: null, backgroundOpacity: 10 } };
     else if (path.endsWith("/profile")) json = { profile: { version: 1, fields: { cnpj: "11222333000181" }, missingFields: ["regime"], unsupportedFields: [], preparationReady: false } };
-    else if (path.endsWith("/certificate")) {
+    else if(path.endsWith("/readiness"))json={tenantId:tenant,environment:"production-restricted",readyForSubmission:false,setup:{profileComplete:false,certificateRegistered:false,certificateCurrentForIssuer:false,storageConfigured:false},technicalBlockers:[]};
+  else if (path.endsWith("/certificate")) {
       if (method === "PATCH" && !failed && body.passphrase === "retry-generic") {
         failed = true;
         return route.fulfill({ status: 503, headers, json: { error: { code: "SERVICE_UNAVAILABLE" } } });

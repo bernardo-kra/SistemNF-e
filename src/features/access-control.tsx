@@ -157,6 +157,7 @@ function MemberEditor({ tenant, member, options, onClose, onSaved, onUnauthorize
       "sales.discount": ["sales.create"],
       "fiscal.configure": ["fiscal.read"], "fiscal.prepare": ["fiscal.read", "orders.read"],
       "fiscal.certificates.manage": ["fiscal.read", "fiscal.configure"],
+      "fiscal.simulate": ["fiscal.read", "orders.read"],
       "orders.read": ["customers.read"], "orders.create": ["orders.read"], "orders.update": ["orders.read"], "orders.advance": ["orders.read"], "orders.deliver": ["orders.read"],
       "purchases.read": ["products.read", "products.cost.read"], "purchases.import": ["purchases.read"], "purchases.receive": ["purchases.read", "stock.receive"],
       "finance.agreements.create": ["finance.read", "customers.read"], "finance.receive": ["finance.read", "customers.read"], "finance.accounts.manage": ["finance.read"], "finance.cash.manage": ["finance.read"],

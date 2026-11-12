@@ -26,6 +26,11 @@ export const stages: Record<Stage, { label: string; tone: Tone }> = {
   ready_for_pickup: { label: "Pronta para retirada", tone: "success" },
   delivered: { label: "Entregue", tone: "neutral" },
 };
+export type ConnectedStage = Stage | "closed_without_repair";
+export const connectedStages: Record<ConnectedStage, { label: string; tone: Tone }> = {
+  ...stages,
+  closed_without_repair: { label: "Devolvida sem reparo", tone: "neutral" },
+};
 export interface Customer {
   id: string;
   name: string;
